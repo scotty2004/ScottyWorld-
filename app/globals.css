@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 248 250 252;
+  --foreground: 15 23 42;
+  --muted: 100 116 139;
+  --card: 255 255 255;
+  --border: 226 232 240;
+}
+
+.dark {
+  --background: 8 11 20;
+  --foreground: 241 245 249;
+  --muted: 148 163 184;
+  --card: 15 20 32;
+  --border: 35 43 59;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+button, input { font: inherit; }
+
+::selection {
+  background: rgba(99, 91, 255, .22);
+}
+
+.glass {
+  background: color-mix(in srgb, rgb(var(--card)) 78%, transparent);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgb(var(--border));
+}
+
+.grid-bg {
+  background-image:
+    linear-gradient(to right, rgba(148,163,184,.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148,163,184,.08) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
