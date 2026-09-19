@@ -1,4 +1,0 @@
-"use client";
-import {useEffect,useState}from"react";
-export default function Audit(){const[rows,setRows]=useState<any[]>([]);useEffect(()=>{fetch("/api/admin/audit-logs").then(r=>r.ok?r.json():[]).then(setRows)},[]);
-return <div className="space-y-5"><h1 className="text-2xl font-bold">Audit logs</h1><div className="overflow-x-auto rounded-2xl border"><table className="w-full text-sm"><thead><tr className="border-b text-left"><th className="p-3">Action</th><th className="p-3">Entity</th><th className="p-3">Admin</th><th className="p-3">Time</th></tr></thead><tbody>{rows.map(r=><tr key={r.id} className="border-b"><td className="p-3">{r.action}</td><td className="p-3">{r.entity}{r.entityId?` · ${r.entityId}`:""}</td><td className="p-3">{r.actor?.username||r.actor?.email||"—"}</td><td className="p-3">{new Date(r.createdAt).toLocaleString()}</td></tr>)}</tbody></table></div></div>}
