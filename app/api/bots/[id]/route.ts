@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "../../../../lib/auth/session";
-import { db } from "../../../../lib/db";
-import { getOwnedBot } from "../../../../lib/bots/authorization";
-import { botUpdateSchema } from "../../../../lib/bots/validation";
-import { recordBotEvent } from "../../../../lib/bots/events";
+import { getCurrentUser } from "@/lib/auth/session";
+import { db } from "@/lib/db";
+import { getOwnedBot } from "@/lib/bots/authorization";
+import { botUpdateSchema } from "@/lib/bots/validation";
+import { recordBotEvent } from "@/lib/bots/events";
 
 export async function GET(_: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();

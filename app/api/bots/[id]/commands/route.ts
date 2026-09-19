@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "../../../../../lib/auth/session";
-import { db } from "../../../../../lib/db";
-import { getOwnedBot } from "../../../../../lib/bots/authorization";
+import { getCurrentUser } from "@/lib/auth/session";
+import { db } from "@/lib/db";
+import { getOwnedBot } from "@/lib/bots/authorization";
 import { z } from "zod";
 
 const schema = z.object({

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "../../../../lib/auth/session";
-import { db } from "../../../../lib/db";
-import { postCreateSchema } from "../../../../lib/community/validation";
-import { rateLimit } from "../../../../lib/security/rate-limit";
+import { getCurrentUser } from "@/lib/auth/session";
+import { db } from "@/lib/db";
+import { postCreateSchema } from "@/lib/community/validation";
+import { rateLimit } from "@/lib/security/rate-limit";
 
 export async function GET(request: Request) {
   const user = await getCurrentUser();

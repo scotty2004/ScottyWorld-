@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { db } from "../../../../lib/db";
-import { createPasswordReset } from "../../../../lib/auth/password-reset";
-import { rateLimit } from "../../../../lib/security/rate-limit";
-import { sendEmail } from "../../../../lib/integrations/email";
+import { db } from "@/lib/db";
+import { createPasswordReset } from "@/lib/auth/password-reset";
+import { rateLimit } from "@/lib/security/rate-limit";
+import { sendEmail } from "@/lib/integrations/email";
 
 export async function POST(request: Request) {
   const ip = request.headers.get("x-forwarded-for") ?? "unknown";

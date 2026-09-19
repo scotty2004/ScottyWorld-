@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { verifyEmailToken } from "../../../../lib/auth/verification";
+import { verifyEmailToken } from "@/lib/auth/verification";
 
 export async function POST(request: Request) {
   const { token } = await request.json();

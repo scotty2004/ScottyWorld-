@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, Bot, Code2, Coins, GraduationCap, ShieldCheck, Sparkles, Store, Users } from "lucide-react";
-import { getCurrentUser } from "../../lib/auth/session";
+import { getCurrentUser } from "@/lib/auth/session";
 
 const actions = [
   ["Ask Scotty AI", "/ai", Sparkles],

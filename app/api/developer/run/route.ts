@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "../../../../lib/auth/session";
-import { runDeveloperTool } from "../../../../lib/developer/operations";
-import { validateToolInput } from "../../../../lib/developer/sanitize";
-import { rateLimit } from "../../../../lib/security/rate-limit";
+import { getCurrentUser } from "@/lib/auth/session";
+import { runDeveloperTool } from "@/lib/developer/operations";
+import { validateToolInput } from "@/lib/developer/sanitize";
+import { rateLimit } from "@/lib/security/rate-limit";
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();

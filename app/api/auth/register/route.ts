@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { db } from "../../../../lib/db";
-import { hashPassword } from "../../../../lib/auth/password";
-import { createSession } from "../../../../lib/auth/session";
-import { createEmailVerification } from "../../../../lib/auth/verification";
-import { registerSchema } from "../../../../lib/validators/auth";
-import { sendEmail } from "../../../../lib/integrations/email";
+import { db } from "@/lib/db";
+import { hashPassword } from "@/lib/auth/password";
+import { createSession } from "@/lib/auth/session";
+import { createEmailVerification } from "@/lib/auth/verification";
+import { registerSchema } from "@/lib/validators/auth";
+import { sendEmail } from "@/lib/integrations/email";
 
 export async function POST(request: Request) {
   try {

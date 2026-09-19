@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "../../../../../../lib/auth/session";
-import { db } from "../../../../../../lib/db";
-import { lessonCompleteSchema } from "../../../../../../lib/academy/validation";
+import { getCurrentUser } from "@/lib/auth/session";
+import { db } from "@/lib/db";
+import { lessonCompleteSchema } from "@/lib/academy/validation";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();

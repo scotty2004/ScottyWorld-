@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X, Search } from "lucide-react";
 import { useState } from "react";
-import { navigation } from "../lib/navigation";
+import { navigation } from "@/lib/navigation";
 import { Logo } from "./logo";
 import { ThemeToggle } from "./theme-toggle";
 import { CommandBar } from "./command-bar";

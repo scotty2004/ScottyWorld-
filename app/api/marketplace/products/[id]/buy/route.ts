@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "../../../../../../lib/auth/session";
-import { db } from "../../../../../../lib/db";
-import { addCoinTransaction, getCoinBalance } from "../../../../../../lib/coins/service";
+import { getCurrentUser } from "@/lib/auth/session";
+import { db } from "@/lib/db";
+import { addCoinTransaction, getCoinBalance } from "@/lib/coins/service";
 
 export async function POST(_: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();

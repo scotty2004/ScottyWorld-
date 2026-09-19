@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "../../../../lib/auth/session";
-import { aiProvider } from "../../../../lib/ai/provider";
-import { SCOTTY_SYSTEM_PROMPT } from "../../../../lib/ai/prompt";
-import { rateLimit } from "../../../../lib/security/rate-limit";
+import { getCurrentUser } from "@/lib/auth/session";
+import { aiProvider } from "@/lib/ai/provider";
+import { SCOTTY_SYSTEM_PROMPT } from "@/lib/ai/prompt";
+import { rateLimit } from "@/lib/security/rate-limit";
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();

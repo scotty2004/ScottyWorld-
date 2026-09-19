@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "../../../lib/auth/session";
-import { db } from "../../../lib/db";
-import { botCreateSchema } from "../../../lib/bots/validation";
-import { recordBotEvent } from "../../../lib/bots/events";
-import { rateLimit } from "../../../lib/security/rate-limit";
+import { getCurrentUser } from "@/lib/auth/session";
+import { db } from "@/lib/db";
+import { botCreateSchema } from "@/lib/bots/validation";
+import { recordBotEvent } from "@/lib/bots/events";
+import { rateLimit } from "@/lib/security/rate-limit";
 
 export async function GET() {
   const user = await getCurrentUser();

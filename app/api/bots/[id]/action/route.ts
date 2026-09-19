@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "../../../../../lib/auth/session";
-import { db } from "../../../../../lib/db";
-import { getOwnedBot } from "../../../../../lib/bots/authorization";
-import { recordBotEvent } from "../../../../../lib/bots/events";
+import { getCurrentUser } from "@/lib/auth/session";
+import { db } from "@/lib/db";
+import { getOwnedBot } from "@/lib/bots/authorization";
+import { recordBotEvent } from "@/lib/bots/events";
 
 const allowed = new Set(["test", "start", "stop", "deploy"]);
 

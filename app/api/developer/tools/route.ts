@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "../../../../lib/auth/session";
-import { developerTools } from "../../../../lib/developer/tools";
+import { getCurrentUser } from "@/lib/auth/session";
+import { developerTools } from "@/lib/developer/tools";
 
 export async function GET() {
   const user = await getCurrentUser();

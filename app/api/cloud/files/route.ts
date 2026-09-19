@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "../../../../lib/auth/session";
-import { db } from "../../../../lib/db";
-import { cloudFileSchema } from "../../../../lib/cloud/validation";
+import { getCurrentUser } from "@/lib/auth/session";
+import { db } from "@/lib/db";
+import { cloudFileSchema } from "@/lib/cloud/validation";
 
 export async function GET(request: Request) {
   const user = await getCurrentUser();

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "../../../../lib/auth/session";
-import { db } from "../../../../lib/db";
-import { getClientIp, hashIdentifier } from "../../../../lib/security/device";
+import { getCurrentUser } from "@/lib/auth/session";
+import { db } from "@/lib/db";
+import { getClientIp, hashIdentifier } from "@/lib/security/device";
 
 export async function GET() {
   const user = await getCurrentUser();

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "../../../../../lib/auth/session";
-import { db } from "../../../../../lib/db";
+import { getCurrentUser } from "@/lib/auth/session";
+import { db } from "@/lib/db";
 
 export async function POST(_: Request, context: { params: Promise<{ username: string }> }) {
   const user = await getCurrentUser();

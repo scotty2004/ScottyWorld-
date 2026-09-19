@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "../../../../../lib/auth/session";
-import { db } from "../../../../../lib/db";
+import { getCurrentUser } from "@/lib/auth/session";
+import { db } from "@/lib/db";
 
 export async function DELETE(_: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
