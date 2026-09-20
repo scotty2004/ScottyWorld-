@@ -33,5 +33,5 @@ export async function verifyEmailToken(raw: string) {
     db.emailVerificationToken.delete({ where: { id: record.id } }),
   ]);
 
-  return true;
+  return record.userId;
 }

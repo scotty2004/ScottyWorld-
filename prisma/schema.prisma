@@ -167,6 +167,10 @@ model User {
   emailVerified DateTime?
   pushSubscriptions PushSubscription[]
   twoFactorEnabled Boolean @default(false)
+  accountNumber String?   @unique
+  twoFactorSecret String?
+  referralCode  String?   @unique
+  lastSeenAt    DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   sessions      Session[]
@@ -197,6 +201,14 @@ model User {
   securityEventsV2 SecurityEventV2[]
   subscriptions Subscription[]
   settingsUpdates PlatformSetting[] @relation("SettingsUpdater")
+  taskSubmissions CoinTaskSubmission[] @relation("TaskSubmitter")
+  transfersSent CoinTransfer[] @relation("TransferFrom")
+  transfersReceived CoinTransfer[] @relation("TransferTo")
+  deposits CoinDeposit[]
+  messagesSent DirectMessage[] @relation("MsgFrom")
+  messagesReceived DirectMessage[] @relation("MsgTo")
+  blocksMade UserBlock[] @relation("Blocker")
+  blocksReceived UserBlock[] @relation("Blocked")
 }
 
 model Profile {
@@ -294,6 +306,11 @@ model Bot {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   deployedAt    DateTime?
+  hostedUntil   DateTime?
+  trialUsed     Boolean   @default(false)
+  source        String    @default("manual")
+  generatedFile String?
+  generatedFileName String?
   owner         User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   events        BotEvent[]
   commands      BotCommand[]
@@ -441,6 +458,14 @@ model Post {
   title       String?
   content     String
   tags        Json?
+  mediaUrl    String?
+  mediaType   String?
+  isStory     Boolean     @default(false)
+  expiresAt   DateTime?
+  sharedPostId String?
+  sharedPost  Post?       @relation("PostShares", fields: [sharedPostId], references: [id], onDelete: SetNull)
+  shares      Post[]      @relation("PostShares")
+  shareCount  Int         @default(0)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   author      User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
@@ -456,6 +481,8 @@ model Comment {
   id        String   @id @default(cuid())
   postId    String
   authorId  String
+  parentId  String?
+  mediaUrl  String?
   content   String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -524,6 +551,8 @@ model MarketplaceProduct {
   status      ProductStatus @default(DRAFT)
   coverUrl    String?
   downloadUrl String?
+  fileName    String?
+  fileData    String?
   metadata    Json?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
@@ -540,8 +569,10 @@ model Order {
   buyerId    String
   productId  String
   status     OrderStatus @default(PENDING)
-  amountCoins Int?
+ amountCoins Int?
   amountCents Int?
+  feeCoins   Int?
+  sellerCoins Int?
   currency   String      @default("USD")
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
@@ -758,6 +789,8 @@ model UserPreference {
   language  String   @default("en")
   timezone  String   @default("UTC")
   compactUI Boolean  @default(false)
+  readReceipts Boolean @default(true)
+  showOnlineStatus Boolean @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -953,4 +986,143 @@ model DownloadJob {
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
+}
+
+
+// ==================== PHASE 14 — ECONOMY, TASKS, MESSAGES ====================
+
+enum TaskSubmissionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  FLAGGED
+}
+
+model CoinTask {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  platform    String
+  kind        String   @default("FOLLOW")
+  url         String
+  rewardCoins Int      @default(5)
+  active      Boolean  @default(true)
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  submissions CoinTaskSubmission[]
+
+  @@index([active, createdAt])
+}
+
+model CoinTaskSubmission {
+  id             String               @id @default(cuid())
+  taskId         String
+  userId         String
+  screenshotData String
+  imageHash      String
+  status         TaskSubmissionStatus @default(PENDING)
+  aiScore        Int?
+  aiVerdict      String?
+  aiReasons      Json?
+  reviewedById   String?
+  reviewedAt     DateTime?
+  createdAt      DateTime             @default(now())
+
+  task CoinTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User     @relation("TaskSubmitter", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@index([status, createdAt])
+  @@index([imageHash])
+}
+
+model CoinTransfer {
+  id         String   @id @default(cuid())
+  fromUserId String
+  toUserId   String
+  amount     Int
+  note       String?
+  createdAt  DateTime @default(now())
+
+  from User @relation("TransferFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  to   User @relation("TransferTo", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@index([fromUserId, createdAt])
+  @@index([toUserId, createdAt])
+}
+
+model CoinDeposit {
+  id          String    @id @default(cuid())
+  userId      String
+  usdCents    Int
+  coins       Int
+  status      String    @default("PENDING")
+  method      String?
+  providerRef String?
+  createdAt   DateTime  @default(now())
+  paidAt      DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+model ReferralClick {
+  id        String   @id @default(cuid())
+  code      String
+  ipHash    String
+  rewarded  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([code, createdAt])
+  @@index([code, ipHash])
+}
+
+model DirectMessage {
+  id        String    @id @default(cuid())
+  fromId    String
+  toId      String
+  content   String
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  from User @relation("MsgFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to   User @relation("MsgTo", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@index([fromId, toId, createdAt])
+  @@index([toId, readAt])
+}
+
+model UserBlock {
+  id        String   @id @default(cuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker User @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+}
+
+model AiUsage {
+  id     String @id @default(cuid())
+  userId String
+  day    String
+  count  Int    @default(0)
+
+  @@unique([userId, day])
+}
+
+model LessonCompletion {
+  id        String   @id @default(cuid())
+  userId    String
+  lessonId  String
+  courseId  String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, lessonId])
+  @@index([userId, courseId])
 }

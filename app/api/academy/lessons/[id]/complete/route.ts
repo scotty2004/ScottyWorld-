@@ -3,7 +3,8 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { lessonCompleteSchema } from "@/lib/academy/validation";
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+/** Tracks every completed lesson individually, so progress really reaches 100%. */
+export async function POST(_: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
 
@@ -13,37 +14,26 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   const lesson = await db.lesson.findFirst({
     where: { id, status: "PUBLISHED" },
-    include: { course: { include: { lessons: { where: { status: "PUBLISHED" }, select: { id: true } } } } },
+    include: { course: { include: { lessons: { where: { status: "PUBLISHED" }, select: { id: true, xpReward: true } } } } },
   });
-
   if (!lesson) return NextResponse.json({ error: "Lesson not found." }, { status: 404 });
 
-  const total = lesson.course.lessons.length;
-  const current = await db.courseProgress.findUnique({
-    where: { userId_courseId: { userId: user.id, courseId: lesson.courseId } },
+  await db.lessonCompletion.upsert({
+    where: { userId_lessonId: { userId: user.id, lessonId: id } },
+    update: {}, create: { userId: user.id, lessonId: id, courseId: lesson.courseId },
   });
 
-  const existingCompleted = current?.completedLessons ?? 0;
-  const percent = Math.min(100, Math.round((Math.max(existingCompleted, 1) / Math.max(total, 1)) * 100));
-  const completedAt = percent >= 100 ? new Date() : undefined;
+  const publishedIds = lesson.course.lessons.map((l) => l.id);
+  const done = await db.lessonCompletion.findMany({ where: { userId: user.id, courseId: lesson.courseId, lessonId: { in: publishedIds } }, select: { lessonId: true } });
+  const doneSet = new Set(done.map((d) => d.lessonId));
+  const total = Math.max(publishedIds.length, 1);
+  const percent = Math.min(100, Math.round((doneSet.size / total) * 100));
+  const xp = lesson.course.lessons.filter((l) => doneSet.has(l.id)).reduce((n, l) => n + l.xpReward, 0);
 
   const progress = await db.courseProgress.upsert({
     where: { userId_courseId: { userId: user.id, courseId: lesson.courseId } },
-    create: {
-      userId: user.id,
-      courseId: lesson.courseId,
-      completedLessons: 1,
-      percent,
-      xpEarned: lesson.xpReward,
-      completedAt,
-    },
-    update: {
-      completedLessons: Math.max(existingCompleted, 1),
-      percent,
-      xpEarned: Math.max(current?.xpEarned ?? 0, lesson.xpReward),
-      completedAt,
-    },
+    create: { userId: user.id, courseId: lesson.courseId, completedLessons: doneSet.size, percent, xpEarned: xp, completedAt: percent >= 100 ? new Date() : null },
+    update: { completedLessons: doneSet.size, percent, xpEarned: xp, completedAt: percent >= 100 ? new Date() : null },
   });
-
-  return NextResponse.json({ progress });
+  return NextResponse.json({ progress, completedLessonIds: [...doneSet] });
 }

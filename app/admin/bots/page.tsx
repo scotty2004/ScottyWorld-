@@ -1,5 +1,26 @@
 "use client";
-import {useEffect,useState} from "react";
-export default function Bots(){const [rows,setRows]=useState<any[]>([]);useEffect(()=>{fetch("/api/admin/bots").then(r=>r.ok?r.json():[]).then(setRows)},[]);
-return <div className="space-y-5"><div><h1 className="text-2xl font-bold">Bots</h1><p className="text-sm text-muted-foreground">Review bot ownership, status and activity state.</p></div>
-<div className="grid gap-3">{rows.map(r=><div key={r.id} className="rounded-2xl border bg-card p-4 flex justify-between gap-4"><div><div className="font-semibold">{r.name}</div><div className="text-xs text-muted-foreground">{r.owner?.username||r.owner?.email||"Unknown owner"}</div></div><span className="text-sm">{r.status}</span></div>)}</div></div>}
+
+import { Badge, ListSkeleton } from "@/components/ui";
+import { AdminHeader, Table, Td } from "@/components/admin/table";
+import { api, useApi } from "@/lib/client";
+import { toast } from "@/components/toast";
+
+type B = { id: string; name: string; status: string; source: string; hostedUntil: string | null; owner: { username: string | null; email: string } };
+const STATUSES = ["DRAFT", "TESTING", "DEPLOYING", "RUNNING", "STOPPED", "ERROR", "PAUSED"];
+
+export default function AdminBots() {
+  const { data, reload } = useApi<B[]>("/api/admin/bots");
+  async function patch(id: string, body: object) { try { await api("/api/admin/bots", { method: "PATCH", json: { id, ...body } }); await reload(); } catch (e) { toast((e as Error).message, "err"); } }
+  return (
+    <div>
+      <AdminHeader title="Bots" sub="You run the bots — set their real status here and grant hosting days. Users renew with coins." />
+      {!data ? <ListSkeleton /> : <Table head={["Bot", "Owner", "Hosting", "Status", "Grant"]}>
+        {data.map((b) => { const left = b.hostedUntil ? Math.ceil((new Date(b.hostedUntil).getTime() - Date.now()) / 86_400_000) : 0; return (
+          <tr key={b.id}><Td><p className="font-semibold">{b.name}</p><p className="text-xs text-subtle">{b.source}</p></Td><Td>@{b.owner.username ?? b.owner.email}</Td>
+            <Td>{left > 0 ? <Badge tone={left <= 2 ? "amber" : "green"}>{left}d left</Badge> : <Badge tone="red">expired</Badge>}</Td>
+            <Td><select value={b.status} onChange={(e) => patch(b.id, { status: e.target.value })} className="sw-input !w-auto !py-1.5 text-xs">{STATUSES.map((s) => <option key={s}>{s}</option>)}</select></Td>
+            <Td><button onClick={() => patch(b.id, { addDays: 7 })} className="sw-btn-ghost !px-3 !py-1.5 text-xs">+7 days</button></Td></tr>); })}
+      </Table>}
+    </div>
+  );
+}

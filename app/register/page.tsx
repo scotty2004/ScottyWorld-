@@ -1,79 +1,49 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
+import { FormEvent, Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Gift } from "lucide-react";
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
+import { AuthShell, authBtn, authInput } from "@/components/auth-shell";
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const ref = useSearchParams().get("ref") || "";
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError("");
-    setLoading(true);
-
-    const form = new FormData(event.currentTarget);
-    const payload = {
-      displayName: String(form.get("displayName") || ""),
-      username: String(form.get("username") || ""),
-      email: String(form.get("email") || ""),
-      password: String(form.get("password") || ""),
-    };
-
-    const response = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    const data = await response.json();
-    setLoading(false);
-
-    if (!response.ok) {
-      setError(data.error || "Registration failed.");
-      return;
-    }
-
-    router.push("/dashboard");
-    router.refresh();
+  async function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(""); setLoading(true);
+    const f = new FormData(e.currentTarget);
+    const payload = { displayName: String(f.get("displayName") || ""), username: String(f.get("username") || ""), email: String(f.get("email") || ""), password: String(f.get("password") || ""), ref: ref || undefined };
+    try {
+      const res = await fetch("/api/auth/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(data.error || "Registration failed."); return; }
+      router.push("/dashboard"); router.refresh();
+    } catch { setError("Network problem. Check your connection."); }
+    finally { setLoading(false); }
   }
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md items-center px-5 py-12">
-      <div className="w-full rounded-3xl border border-border bg-card p-7">
-        <h1 className="text-2xl font-bold">Create your ScottyWorld account</h1>
-        <p className="mt-2 text-sm text-muted">Start building your personalized technology workspace.</p>
-
-        <form onSubmit={submit} className="mt-7 space-y-4">
-          <label className="block text-sm font-medium">Display name
-            <input name="displayName" required className="mt-2 w-full rounded-xl border border-border bg-background px-4 py-3 outline-none focus:border-brand-500" />
-          </label>
-          <label className="block text-sm font-medium">Username
-            <input name="username" required minLength={3} className="mt-2 w-full rounded-xl border border-border bg-background px-4 py-3 outline-none focus:border-brand-500" />
-          </label>
-          <label className="block text-sm font-medium">Email
-            <input name="email" type="email" required className="mt-2 w-full rounded-xl border border-border bg-background px-4 py-3 outline-none focus:border-brand-500" />
-          </label>
-          <label className="block text-sm font-medium">Password
-            <input name="password" type="password" required minLength={8} className="mt-2 w-full rounded-xl border border-border bg-background px-4 py-3 outline-none focus:border-brand-500" />
-          </label>
-
-          {error && <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-500">{error}</p>}
-
-          <button disabled={loading} className="w-full rounded-xl bg-brand-500 py-3 font-semibold text-white disabled:opacity-60">
-            {loading ? "Creating account..." : "Create account"}
-          </button>
-        </form>
-
-        <GoogleSignInButton />
-
-        <p className="mt-6 text-center text-sm text-muted">
-          Already have an account? <Link href="/login" className="text-brand-500">Sign in</Link>
-        </p>
-      </div>
-    </div>
+    <AuthShell title="Create your account" subtitle="Join ScottyWorld — it's free." footer={<>Already have an account? <Link href="/login" className="font-semibold text-blue-400">Sign in</Link></>}>
+      {ref && <p className="mb-4 flex items-center gap-2 rounded-xl border border-blue-400/25 bg-blue-500/10 px-4 py-2.5 text-xs text-blue-200"><Gift size={15} /> You were invited by <b>{ref}</b></p>}
+      <form onSubmit={submit} className="space-y-3.5">
+        <input name="displayName" required minLength={2} placeholder="Display name" autoComplete="name" className={authInput} />
+        <input name="username" required minLength={3} maxLength={30} pattern="[a-zA-Z0-9_]+" title="Letters, numbers and underscores only" placeholder="Username" autoComplete="username" className={authInput} />
+        <input name="email" type="email" required placeholder="Email" autoComplete="email" className={authInput} />
+        <input name="password" type="password" required minLength={8} placeholder="Password (8+ characters)" autoComplete="new-password" className={authInput} />
+        {error && <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</p>}
+        <button disabled={loading} className={authBtn}>{loading ? "Creating account…" : "Create account"}</button>
+        <p className="text-center text-[11px] text-slate-500">By signing up you agree to our Terms of Service, Privacy Policy and Community Guidelines.</p>
+      </form>
+      <div className="mt-5"><GoogleSignInButton /></div>
+    </AuthShell>
   );
+}
+
+export default function RegisterPage() {
+  return <Suspense><RegisterForm /></Suspense>;
 }

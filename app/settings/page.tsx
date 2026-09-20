@@ -1,38 +1,27 @@
-import { getCurrentUser } from "@/lib/auth/session";
-import { redirect } from "next/navigation";
-import { ShieldCheck, UserRound, Bell, KeyRound } from "lucide-react";
+"use client";
 
-export default async function SettingsPage() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
+import { useRouter } from "next/navigation";
+import { Bell, Info, LifeBuoy, LogOut, MessageSquare, Moon, ShieldCheck, ShieldEllipsis, User } from "lucide-react";
+import { Page, Row, RowGroup, SubHeader } from "@/components/ui";
+import { api } from "@/lib/client";
 
+export default function SettingsPage() {
+  const router = useRouter();
+  async function logout() { await api("/api/auth/logout", { method: "POST" }).catch(() => null); router.push("/login"); router.refresh(); }
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 lg:px-8">
-      <h1 className="text-3xl font-bold">Settings</h1>
-      <p className="mt-2 text-muted">Manage your ScottyWorld account and security preferences.</p>
-
-      <div className="mt-8 grid gap-4 sm:grid-cols-2">
-        <section className="rounded-2xl border border-border bg-card p-6">
-          <UserRound className="text-brand-500" />
-          <h2 className="mt-5 font-semibold">Profile</h2>
-          <p className="mt-2 text-sm text-muted">@{user.username} · {user.email}</p>
-        </section>
-        <section className="rounded-2xl border border-border bg-card p-6">
-          <ShieldCheck className="text-brand-500" />
-          <h2 className="mt-5 font-semibold">Security</h2>
-          <p className="mt-2 text-sm text-muted">{user.emailVerified ? "Email verified" : "Email verification required"}</p>
-        </section>
-        <section className="rounded-2xl border border-border bg-card p-6">
-          <KeyRound className="text-brand-500" />
-          <h2 className="mt-5 font-semibold">Password and sessions</h2>
-          <p className="mt-2 text-sm text-muted">Password reset and active-session controls are available through the secure API layer.</p>
-        </section>
-        <section className="rounded-2xl border border-border bg-card p-6">
-          <Bell className="text-brand-500" />
-          <h2 className="mt-5 font-semibold">Notifications</h2>
-          <p className="mt-2 text-sm text-muted">Notification preferences will control security, community, bot, marketplace and platform updates.</p>
-        </section>
-      </div>
-    </div>
+    <Page>
+      <SubHeader title="Settings" backHref="/menu" />
+      <RowGroup>
+        <Row icon={<User size={20} />} title="Account" sub="Profile, email, password and username" href="/settings/account" />
+        <Row icon={<ShieldCheck size={20} />} title="Privacy & Security" sub="Private account, blocked users, 2FA" href="/settings/privacy" />
+        <Row icon={<Bell size={20} />} title="Notifications" sub="Choose what you want to be notified about" href="/settings/notifications" />
+        <Row icon={<Moon size={20} />} title="Appearance" sub="Dark or light mode" href="/settings/appearance" />
+        <Row icon={<MessageSquare size={20} />} title="Messages" sub="Read receipts and online status" href="/settings/messages" />
+        <Row icon={<ShieldEllipsis size={20} />} title="Security Center" sub="See and manage your sessions" href="/security" />
+        <Row icon={<Info size={20} />} title="About" sub="Version, terms, privacy policy, guidelines" href="/settings/about" />
+        <Row icon={<LifeBuoy size={20} />} title="Help & Support" sub="Get help from our team" href="/support" />
+      </RowGroup>
+      <div className="mt-4"><RowGroup><Row icon={<LogOut size={20} />} title="Logout" danger onClick={logout} right={<span />} /></RowGroup></div>
+    </Page>
   );
 }

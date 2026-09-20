@@ -1,10 +1,21 @@
 "use client";
-import {useEffect,useState} from "react";
-export default function Users(){
- const [q,setQ]=useState(""); const [rows,setRows]=useState<any[]>([]);
- const load=()=>fetch("/api/admin/users?q="+encodeURIComponent(q)).then(r=>r.ok?r.json():[]).then(setRows);
- useEffect(()=>{load()},[]);
- return <div className="space-y-5"><div><h1 className="text-2xl font-bold">Users</h1><p className="text-sm text-muted-foreground">Search platform accounts and roles.</p></div>
- <div className="flex gap-2"><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search username or email" className="w-full rounded-xl border bg-background px-3 py-2"/><button onClick={load} className="rounded-xl bg-primary px-4 text-primary-foreground">Search</button></div>
- <div className="overflow-x-auto rounded-2xl border"><table className="w-full text-sm"><thead><tr className="border-b text-left text-muted-foreground"><th className="p-3">Username</th><th className="p-3">Email</th><th className="p-3">Role</th><th className="p-3">Created</th></tr></thead><tbody>{rows.map(r=><tr key={r.id} className="border-b last:border-0"><td className="p-3">{r.username||"—"}</td><td className="p-3">{r.email}</td><td className="p-3">{r.role}</td><td className="p-3">{new Date(r.createdAt).toLocaleDateString()}</td></tr>)}</tbody></table></div></div>
+
+import { useEffect, useState } from "react";
+import { Search } from "lucide-react";
+import { Badge, ListSkeleton } from "@/components/ui";
+import { AdminHeader, Table, Td } from "@/components/admin/table";
+import { api } from "@/lib/client";
+
+type U = { id: string; username: string | null; email: string; role: string; createdAt: string };
+
+export default function AdminUsers() {
+  const [q, setQ] = useState(""); const [rows, setRows] = useState<U[] | null>(null);
+  useEffect(() => { const t = setTimeout(() => api<U[]>("/api/admin/users?q=" + encodeURIComponent(q)).then(setRows).catch(() => setRows([])), 250); return () => clearTimeout(t); }, [q]);
+  return (
+    <div>
+      <AdminHeader title="Users" sub="Search accounts and roles." />
+      <div className="relative mb-4 max-w-md"><Search size={17} className="absolute left-4 top-1/2 -translate-y-1/2 text-subtle" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search username or email" className="sw-input !pl-11" /></div>
+      {rows === null ? <ListSkeleton /> : <Table head={["Username", "Email", "Role", "Joined"]}>{rows.map((r) => <tr key={r.id}><Td className="font-semibold">@{r.username ?? "—"}</Td><Td>{r.email}</Td><Td><Badge tone={r.role === "USER" ? "slate" : "purple"}>{r.role.toLowerCase().replace("_", " ")}</Badge></Td><Td>{new Date(r.createdAt).toLocaleDateString()}</Td></tr>)}</Table>}
+    </div>
+  );
 }

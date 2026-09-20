@@ -13,5 +13,9 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
   });
 
   if (!lesson) return NextResponse.json({ error: "Lesson not found." }, { status: 404 });
-  return NextResponse.json({ lesson });
+  const siblings = await db.lesson.findMany({ where: { courseId: lesson.courseId, status: "PUBLISHED" }, orderBy: { position: "asc" }, select: { id: true } });
+  const i = siblings.findIndex((x) => x.id === id);
+  const course = await db.course.findUnique({ where: { id: lesson.courseId }, select: { slug: true, title: true } });
+  const done = await db.lessonCompletion.findUnique({ where: { userId_lessonId: { userId: user.id, lessonId: id } }, select: { id: true } });
+  return NextResponse.json({ lesson, course, position: i + 1, total: siblings.length, prevId: siblings[i - 1]?.id ?? null, nextId: siblings[i + 1]?.id ?? null, completed: Boolean(done) });
 }

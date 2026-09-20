@@ -1,27 +1,32 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { me, unauth } from "@/lib/api";
+import { ensureReferralCode } from "@/lib/coins/service";
+import { ECONOMY } from "@/lib/economy";
 
-export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+export async function GET(req: Request) {
+  const user = await me();
+  if (!user) return unauth();
+  const code = await ensureReferralCode(user.id, user.username);
+  const origin = process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_SITE_URL || new URL(req.url).origin;
 
-  const referrals = await db.referral.findMany({
-    where: { referrerId: user.id },
-    orderBy: { createdAt: "desc" },
-    include: { referred: { select: { username: true, displayName: true } } },
+  const [referrals, clicks, rewardedClicks, paid] = await Promise.all([
+    db.referral.findMany({ where: { referrerId: user.id }, orderBy: { createdAt: "desc" }, take: 50, include: { referred: { select: { username: true, displayName: true } } } }),
+    db.referralClick.count({ where: { code } }),
+    db.referralClick.count({ where: { code, rewarded: true } }),
+    db.referral.aggregate({ where: { referrerId: user.id, status: "REWARDED" }, _sum: { rewardCoins: true }, _count: true }),
+  ]);
+
+  return NextResponse.json({
+    code,
+    link: `${origin.replace(/\/$/, "")}/r/${code}`,
+    rewards: { perReferral: ECONOMY.REFERRAL_REWARD, perClick: ECONOMY.REFERRAL_CLICK_REWARD },
+    stats: {
+      clicks,
+      signups: referrals.length,
+      successful: paid._count,
+      earned: (paid._sum.rewardCoins ?? 0) + rewardedClicks * ECONOMY.REFERRAL_CLICK_REWARD,
+    },
+    referrals,
   });
-
-  return NextResponse.json({ referrals });
-}
-
-export async function POST(request: Request) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
-
-  const body = await request.json().catch(() => ({}));
-  const code = typeof body.code === "string" ? body.code.trim() : "";
-  if (!/^[a-zA-Z0-9_-]{3,40}$/.test(code)) return NextResponse.json({ error: "Invalid referral code." }, { status: 400 });
-
-  return NextResponse.json({ message: "Referral attribution endpoint is ready. Apply the code during registration in the next auth iteration.", code });
 }

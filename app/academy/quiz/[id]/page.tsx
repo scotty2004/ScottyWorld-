@@ -1,57 +1,62 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import Link from "next/link";
+import { use, useState } from "react";
+import { CheckCircle2, XCircle } from "lucide-react";
+import { ErrorNote, ListSkeleton, Page, SubHeader } from "@/components/ui";
+import { api, useApi } from "@/lib/client";
+import { toast } from "@/components/toast";
 
-type Question = { id: string; question: string; options: string[]; position: number };
-type Quiz = { id: string; title: string; passingScore: number; questions: Question[] };
+type Quiz = { quiz: { id: string; title: string; passingScore: number; lessonId: string; questions: Array<{ id: string; question: string; options: string[] }> } };
 
-export default function QuizPage() {
-  const { id } = useParams<{ id: string }>();
-  const [quiz, setQuiz] = useState<Quiz | null>(null);
+export default function QuizPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const { data, loading, error } = useApi<Quiz>(`/api/academy/quizzes/${id}`);
   const [answers, setAnswers] = useState<Record<string, number>>({});
-  const [result, setResult] = useState<{score:number; passed:boolean} | null>(null);
-
-  useEffect(() => {
-    fetch(`/api/academy/quizzes/${id}`).then(r => r.json()).then(d => setQuiz(d.quiz));
-  }, [id]);
+  const [result, setResult] = useState<{ score: number; passed: boolean; review: Array<{ id: string; answer: number }> } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const q = data?.quiz;
+  const answered = q ? q.questions.every((x) => answers[x.id] !== undefined) : false;
 
   async function submit() {
-    const response = await fetch(`/api/academy/quizzes/${id}/submit`, {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ answers }),
-    });
-    const data = await response.json();
-    if (response.ok) setResult({ score: data.score, passed: data.passed });
+    setBusy(true);
+    try { setResult(await api(`/api/academy/quizzes/${id}`, { method: "POST", json: { answers } })); window.scrollTo({ top: 0, behavior: "smooth" }); }
+    catch (e) { toast((e as Error).message, "err"); } finally { setBusy(false); }
   }
-
-  if (!quiz) return <div className="mx-auto max-w-3xl px-4 py-10 text-sm text-muted">Loading quiz...</div>;
+  const correct = (qid: string) => result?.review.find((r) => r.id === qid)?.answer;
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 lg:px-8">
-      <h1 className="text-3xl font-bold">{quiz.title}</h1>
-      <p className="mt-2 text-sm text-muted">Passing score: {quiz.passingScore}%</p>
-
-      <div className="mt-8 space-y-5">
-        {quiz.questions.map(q => (
-          <div key={q.id} className="rounded-2xl border border-border bg-card p-5">
-            <p className="font-medium">{q.position}. {q.question}</p>
-            <div className="mt-4 grid gap-2">
-              {(q.options || []).map((option, index) => (
-                <label key={index} className="flex cursor-pointer items-center gap-3 rounded-xl border border-border p-3 text-sm hover:border-brand-500">
-                  <input type="radio" name={q.id} checked={answers[q.id] === index} onChange={() => setAnswers(a => ({...a, [q.id]: index}))}/>
-                  {option}
-                </label>
-              ))}
+    <Page>
+      <SubHeader title="Quiz" backHref={q ? `/academy/lesson/${q.lessonId}` : "/academy"} />
+      {loading ? <ListSkeleton /> : error || !q ? <ErrorNote message={error || "Quiz not found."} /> : (
+        <>
+          {result && (
+            <div className={`mb-4 rounded-2xl p-5 text-center ${result.passed ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-amber-500/10 text-amber-700 dark:text-amber-300"}`}>
+              <p className="text-4xl font-extrabold">{result.score}%</p>
+              <p className="mt-1 font-semibold">{result.passed ? "You passed! 🎉" : `Keep going — you need ${q.passingScore}% to pass.`}</p>
+              <div className="mt-3 flex justify-center gap-2"><button onClick={() => { setResult(null); setAnswers({}); }} className="sw-btn-ghost">Try again</button><Link href={`/academy/lesson/${q.lessonId}`} className="sw-btn">Back to lesson</Link></div>
             </div>
+          )}
+          <div className="space-y-4">
+            {q.questions.map((qq, i) => (
+              <div key={qq.id} className="sw-card p-4">
+                <p className="font-bold">{i + 1}. {qq.question}</p>
+                <div className="mt-3 space-y-2">
+                  {qq.options.map((o, oi) => {
+                    const sel = answers[qq.id] === oi; const right = correct(qq.id) === oi;
+                    const cls = result ? (right ? "border-emerald-500 bg-emerald-500/10" : sel ? "border-red-500 bg-red-500/10" : "border-border") : sel ? "border-brand-600 bg-brand-50 dark:bg-brand-500/15" : "border-border hover:bg-soft";
+                    return (
+                      <button key={oi} disabled={!!result} onClick={() => setAnswers({ ...answers, [qq.id]: oi })} className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left text-[15px] ${cls}`}>
+                        <span className="flex-1">{o}</span>{result && right && <CheckCircle2 size={18} className="text-emerald-600" />}{result && sel && !right && <XCircle size={18} className="text-red-500" />}
+                      </button>);
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-
-      <button onClick={submit} className="mt-6 rounded-xl bg-brand-500 px-5 py-3 text-sm font-semibold text-white">Submit quiz</button>
-
-      {result && <div className="mt-5 rounded-2xl border border-border bg-card p-6"><p className="font-semibold">Score: {result.score}%</p><p className="mt-2 text-sm text-muted">{result.passed ? "Passed." : "Not passed yet. Review the lesson and try again."}</p></div>}
-    </div>
+          {!result && <button onClick={submit} disabled={!answered || busy} className="sw-btn mt-5 w-full py-3.5">{busy ? "Checking…" : "Submit answers"}</button>}
+        </>
+      )}
+    </Page>
   );
 }

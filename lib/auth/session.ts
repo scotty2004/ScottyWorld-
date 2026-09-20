@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "crypto";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { db } from "../db";
 
 const COOKIE_NAME = "scottyworld_session";
@@ -14,8 +14,9 @@ export async function createSession(userId: string) {
   const tokenHash = hashToken(token);
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000);
 
+  const h = await headers();
   await db.session.create({
-    data: { userId, tokenHash, expiresAt },
+    data: { userId, tokenHash, expiresAt, userAgent: h.get("user-agent")?.slice(0, 300) ?? null },
   });
 
   const cookieStore = await cookies();
@@ -47,7 +48,20 @@ export async function getCurrentUser() {
     return null;
   }
 
+  // keep "last active" fresh without a write on every request
+  if (Date.now() - session.lastSeenAt.getTime() > 5 * 60_000) {
+    void db.session.update({ where: { id: session.id }, data: { lastSeenAt: new Date() } }).catch(() => {});
+  }
+
   return session.user;
+}
+
+export async function getCurrentSessionId() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(COOKIE_NAME)?.value;
+  if (!token) return null;
+  const s = await db.session.findUnique({ where: { tokenHash: hashToken(token) }, select: { id: true } });
+  return s?.id ?? null;
 }
 
 export async function destroyCurrentSession() {

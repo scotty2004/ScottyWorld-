@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth/session";
+import { getCurrentUser, getCurrentSessionId } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
 export async function GET() {
@@ -12,7 +12,8 @@ export async function GET() {
     orderBy: { lastSeenAt: "desc" },
   });
 
-  return NextResponse.json({ sessions });
+  const currentId = await getCurrentSessionId();
+  return NextResponse.json({ sessions: sessions.map((s) => ({ ...s, current: s.id === currentId })) });
 }
 
 export async function DELETE(request: Request) {

@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { getOwnedBot } from "@/lib/bots/authorization";
 import { recordBotEvent } from "@/lib/bots/events";
+import { hostingState } from "@/lib/bots/hosting";
 
 const allowed = new Set(["test", "start", "stop", "deploy"]);
 
@@ -17,6 +18,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const body = await request.json().catch(() => ({}));
   const action = typeof body.action === "string" ? body.action : "";
   if (!allowed.has(action)) return NextResponse.json({ error: "Unsupported bot action." }, { status: 400 });
+
+  if ((action === "start" || action === "deploy") && hostingState(bot.hostedUntil).state === "EXPIRED") {
+    await db.bot.update({ where: { id }, data: { status: "PAUSED" } }).catch(() => null);
+    return NextResponse.json({ error: "Hosting expired. Renew with Scotty Coins to run this bot." }, { status: 402 });
+  }
 
   let status = bot.status;
   let event: "STARTED" | "STOPPED" | "DEPLOYED" | "UPDATED" = "UPDATED";

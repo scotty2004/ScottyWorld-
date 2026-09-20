@@ -1,8 +1,31 @@
 "use client";
-import {useEffect,useState}from"react";
-export default function Coins(){const[rows,setRows]=useState<any[]>([]);const[userId,setUserId]=useState("");const[amount,setAmount]=useState("");const[reason,setReason]=useState("");
-useEffect(()=>{fetch("/api/admin/coins").then(r=>r.ok?r.json():[]).then(setRows)},[]);
-const submit=async()=>{const r=await fetch("/api/admin/coins",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({userId,amount:Number(amount),reason})});if(r.ok){const x=await r.json();setRows(v=>[x,...v]);setUserId("");setAmount("");setReason("")}};
-return <div className="space-y-5"><div><h1 className="text-2xl font-bold">Scotty Coins</h1><p className="text-sm text-muted-foreground">Audited balance adjustments for authorized finance roles.</p></div>
-<div className="rounded-2xl border bg-card p-4 grid gap-2 sm:grid-cols-4"><input value={userId} onChange={e=>setUserId(e.target.value)} placeholder="User ID" className="rounded-lg border bg-background px-3 py-2"/><input value={amount} onChange={e=>setAmount(e.target.value)} placeholder="+/- amount" className="rounded-lg border bg-background px-3 py-2"/><input value={reason} onChange={e=>setReason(e.target.value)} placeholder="Reason" className="rounded-lg border bg-background px-3 py-2"/><button onClick={submit} className="rounded-lg bg-primary px-3 py-2 text-primary-foreground">Adjust</button></div>
-<div className="overflow-x-auto rounded-2xl border"><table className="w-full text-sm"><thead><tr className="border-b text-left"><th className="p-3">User</th><th className="p-3">Amount</th><th className="p-3">Type</th><th className="p-3">Reason</th></tr></thead><tbody>{rows.map(r=><tr key={r.id} className="border-b"><td className="p-3">{r.user?.username||r.user?.email||r.userId}</td><td className="p-3">{r.amount}</td><td className="p-3">{r.type}</td><td className="p-3">{r.description||"—"}</td></tr>)}</tbody></table></div></div>}
+
+import { useState } from "react";
+import { Badge, Field, ListSkeleton } from "@/components/ui";
+import { AdminHeader, Table, Td } from "@/components/admin/table";
+import { api, timeAgo, useApi } from "@/lib/client";
+import { toast } from "@/components/toast";
+
+type T = { id: string; amount: number; type: string; reason: string; createdAt: string; user: { username: string | null; email: string } };
+
+export default function AdminCoins() {
+  const { data, reload } = useApi<T[]>("/api/admin/coins");
+  const [f, setF] = useState({ username: "", amount: "", reason: "" }); const [busy, setBusy] = useState(false);
+  async function submit() {
+    setBusy(true);
+    try { await api("/api/admin/coins", { method: "POST", json: { username: f.username.replace(/^@/, ""), amount: parseInt(f.amount, 10), reason: f.reason } }); toast("Adjustment recorded"); setF({ username: "", amount: "", reason: "" }); await reload(); }
+    catch (e) { toast((e as Error).message, "err"); } finally { setBusy(false); }
+  }
+  return (
+    <div>
+      <AdminHeader title="Scotty Coins" sub="Audited balance adjustments. Use + to give coins and − to take them." />
+      <div className="sw-card mb-4 grid gap-3 p-4 sm:grid-cols-[1fr_120px_2fr_auto] sm:items-end">
+        <Field label="Username"><input value={f.username} onChange={(e) => setF({ ...f, username: e.target.value })} placeholder="@scotty" className="sw-input" /></Field>
+        <Field label="Amount"><input value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} placeholder="+50 / -20" className="sw-input" /></Field>
+        <Field label="Reason"><input value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} maxLength={240} className="sw-input" /></Field>
+        <button onClick={submit} disabled={busy || !f.username || !f.amount || !f.reason} className="sw-btn">Apply</button>
+      </div>
+      {!data ? <ListSkeleton /> : <Table head={["User", "Amount", "Type", "Reason", "When"]}>{data.map((r) => <tr key={r.id}><Td>@{r.user.username ?? r.user.email}</Td><Td className={`font-bold ${r.amount > 0 ? "text-emerald-600" : "text-red-500"}`}>{r.amount > 0 ? "+" : ""}{r.amount}</Td><Td><Badge tone="slate">{r.type.toLowerCase()}</Badge></Td><Td>{r.reason}</Td><Td>{timeAgo(r.createdAt)}</Td></tr>)}</Table>}
+    </div>
+  );
+}

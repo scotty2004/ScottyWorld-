@@ -1,21 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const protectedPrefixes = [
-  "/dashboard",
-  "/ai",
-  "/bots",
-  "/developer",
-  "/academy",
-  "/marketplace",
-  "/community",
-  "/coins",
-  "/referrals",
-  "/cloud",
-  "/security",
-  "/pro",
-  "/admin",
-];
+// Everything is private by default. Only these paths work without a session.
+const PUBLIC_EXACT = new Set(["/", "/login", "/register", "/forgot-password", "/verify-email", "/robots.txt", "/sitemap.xml", "/manifest.webmanifest", "/sw.js", "/security.txt"]);
+const PUBLIC_PREFIX = ["/api/", "/r/", "/reset", "/_next/", "/icon", "/apple-icon"];
 
 export function middleware(request: NextRequest) {
   const response = NextResponse.next();
@@ -40,9 +28,7 @@ export function middleware(request: NextRequest) {
   // The actual user/role authorization remains server-side in layouts/API
   // handlers. This only prevents accidental unauthenticated navigation when
   // no session cookie exists.
-  const isProtected = protectedPrefixes.some((prefix) =>
-    path === prefix || path.startsWith(`${prefix}/`)
-  );
+  const isProtected = !PUBLIC_EXACT.has(path) && !PUBLIC_PREFIX.some((p) => path.startsWith(p));
   if (isProtected && !request.cookies.get("scottyworld_session")?.value) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";

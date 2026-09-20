@@ -3,6 +3,18 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { quizSubmitSchema } from "@/lib/academy/validation";
 
+export async function GET(_: Request, context: { params: Promise<{ id: string }> }) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  const { id } = await context.params;
+  const quiz = await db.quiz.findUnique({
+    where: { id },
+    select: { id: true, title: true, passingScore: true, lessonId: true, questions: { orderBy: { position: "asc" }, select: { id: true, question: true, options: true } } },
+  });
+  if (!quiz) return NextResponse.json({ error: "Quiz not found." }, { status: 404 });
+  return NextResponse.json({ quiz });
+}
+
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
@@ -28,5 +40,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     data: { userId: user.id, quizId: id, score, passed, answers: parsed.data.answers as any },
   });
 
-  return NextResponse.json({ attempt, score, passed });
+  // reveal the right answers only after submitting
+  const review = quiz.questions.map((q) => ({ id: q.id, answer: q.answer }));
+  return NextResponse.json({ attempt, score, passed, review });
 }

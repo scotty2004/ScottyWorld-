@@ -1,52 +1,42 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, BookOpen, CheckCircle2, Clock3 } from "lucide-react";
+import { use } from "react";
+import { CheckCircle2, Circle, Clock, PlayCircle } from "lucide-react";
+import { Badge, ErrorNote, ListSkeleton, Page, SubHeader } from "@/components/ui";
+import { useApi } from "@/lib/client";
 
-type Course = {
-  title: string; description: string; category: string; level: string;
-  lessons: { id: string; title: string; slug: string; position: number; durationMin: number; xpReward: number }[];
-  progress: { percent: number; completedLessons: number }[];
-};
+type Data = { course: { title: string; description: string; category: string; level: string; xpReward: number; lessons: Array<{ id: string; title: string; position: number; durationMin: number; xpReward: number }>; progress: Array<{ percent: number }> }; completedLessonIds: string[] };
 
-export default function CoursePage() {
-  const { slug } = useParams<{ slug: string }>();
-  const [course, setCourse] = useState<Course | null>(null);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (!slug) return;
-    fetch(`/api/academy/courses/${slug}`).then(async r => {
-      const d = await r.json();
-      if (!r.ok) setError(d.error || "Course unavailable.");
-      else setCourse(d.course);
-    });
-  }, [slug]);
-
-  if (error) return <div className="mx-auto max-w-4xl px-4 py-10"><div className="rounded-2xl border border-border bg-card p-7 text-sm">{error}</div></div>;
-  if (!course) return <div className="mx-auto max-w-4xl px-4 py-10 text-sm text-muted">Loading course...</div>;
-
-  const percent = course.progress[0]?.percent ?? 0;
+export default function CoursePage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = use(params);
+  const { data, loading, error } = useApi<Data>(`/api/academy/courses/${slug}`);
+  const c = data?.course;
+  const done = new Set(data?.completedLessonIds ?? []);
+  const next = c?.lessons.find((l) => !done.has(l.id)) ?? c?.lessons[0];
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 lg:px-8">
-      <p className="text-sm text-brand-500">{course.category}</p>
-      <h1 className="mt-2 text-3xl font-bold">{course.title}</h1>
-      <p className="mt-3 text-muted">{course.description}</p>
-      <div className="mt-6 h-2 rounded-full bg-card"><div className="h-full rounded-full bg-brand-500" style={{width: `${percent}%`}} /></div>
-      <p className="mt-2 text-xs text-muted">{percent}% complete</p>
-
-      <div className="mt-8 space-y-3">
-        {course.lessons.map(lesson => (
-          <Link key={lesson.id} href={`/academy/lesson/${lesson.id}`} className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5 hover:border-brand-500">
-            <div className="grid h-10 w-10 place-items-center rounded-xl bg-brand-500/10 text-brand-500"><BookOpen size={18}/></div>
-            <div className="min-w-0 flex-1"><p className="font-medium">{lesson.position}. {lesson.title}</p><p className="mt-1 text-xs text-muted"><span className="inline-flex items-center gap-1"><Clock3 size={12}/>{lesson.durationMin} min</span> <span className="ml-3">{lesson.xpReward} XP</span></p></div>
-            <ArrowRight size={18} className="text-muted"/>
-          </Link>
-        ))}
-      </div>
-    </div>
+    <Page>
+      <SubHeader title={c?.title ?? "Course"} backHref="/academy" />
+      {loading ? <ListSkeleton /> : error || !c ? <ErrorNote message={error || "Course not found."} /> : (
+        <>
+          <div className="sw-card p-4">
+            <div className="flex flex-wrap items-center gap-2"><Badge>{c.category}</Badge><Badge tone="slate">{c.level.charAt(0) + c.level.slice(1).toLowerCase()}</Badge></div>
+            <p className="mt-3 text-[15px]">{c.description}</p>
+            <div className="mt-4 flex items-center gap-3"><div className="h-2 flex-1 overflow-hidden rounded-full bg-soft"><div className="h-full rounded-full bg-brand-600" style={{ width: `${c.progress[0]?.percent ?? 0}%` }} /></div><span className="text-sm font-bold">{c.progress[0]?.percent ?? 0}%</span></div>
+            {next && <Link href={`/academy/lesson/${next.id}`} className="sw-btn mt-4 w-full py-3"><PlayCircle size={19} /> {done.size ? "Continue" : "Start course"}</Link>}
+          </div>
+          <h2 className="mb-2 mt-6 text-[15px] font-bold">{c.lessons.length} lessons</h2>
+          <div className="sw-card divide-y divide-border overflow-hidden">
+            {c.lessons.map((l) => (
+              <Link key={l.id} href={`/academy/lesson/${l.id}`} className="flex items-center gap-3 px-4 py-3.5 hover:bg-soft">
+                {done.has(l.id) ? <CheckCircle2 size={22} className="shrink-0 text-emerald-500" /> : <Circle size={22} className="shrink-0 text-border" />}
+                <div className="min-w-0 flex-1"><p className="truncate font-semibold">{l.position}. {l.title}</p><p className="flex items-center gap-1 text-xs text-subtle"><Clock size={12} /> {l.durationMin} min · {l.xpReward} XP</p></div>
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
+    </Page>
   );
 }

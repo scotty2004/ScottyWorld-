@@ -1,71 +1,88 @@
+"use client";
+
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { ArrowRight, Bot, Code2, Coins, GraduationCap, ShieldCheck, Sparkles, Store, Users } from "lucide-react";
-import { getCurrentUser } from "@/lib/auth/session";
+import { Bell, Coins, Heart, ImageIcon, MessageCircle, Pencil, Sparkles, UserPlus, Video, Store, Bot } from "lucide-react";
+import { Avatar, Empty, ListSkeleton, Page, Section } from "@/components/ui";
+import { PostCard, type FeedPost } from "@/components/post-card";
+import { PeopleYouMayKnow } from "@/components/people-strip";
+import { timeAgo, useApi } from "@/lib/client";
 
-const actions = [
-  ["Ask Scotty AI", "/ai", Sparkles],
-  ["Create Bot", "/bots", Bot],
-  ["Developer Tools", "/developer", Code2],
-  ["Marketplace", "/marketplace", Store],
-  ["Academy", "/academy", GraduationCap],
-  ["Community", "/community", Users],
-];
+type Account = { account: { displayName: string; avatarUrl: string | null } };
+type Notif = { notifications: Array<{ id: string; type: string; title: string; body: string; createdAt: string; readAt: string | null }> };
 
-export default async function Dashboard() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
+const ICON: Record<string, { i: typeof Bell; c: string }> = {
+  COMMUNITY: { i: Heart, c: "bg-red-50 text-red-500 dark:bg-red-500/15" },
+  REFERRAL: { i: UserPlus, c: "bg-brand-50 text-brand-600 dark:bg-brand-500/15" },
+  MARKETPLACE: { i: Store, c: "bg-violet-50 text-violet-600 dark:bg-violet-500/15" },
+  PRO: { i: Sparkles, c: "bg-amber-50 text-amber-600 dark:bg-amber-500/15" },
+  BOT: { i: Bot, c: "bg-cyan-50 text-cyan-600 dark:bg-cyan-500/15" },
+  SYSTEM: { i: Coins, c: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15" },
+};
+
+function greeting() {
+  const h = new Date().getHours();
+  return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+}
+
+export default function DashboardPage() {
+  const acc = useApi<Account>("/api/account");
+  const feed = useApi<{ posts: FeedPost[] }>("/api/community/posts?feed=for-you");
+  const notifs = useApi<Notif>("/api/notifications");
+  const name = acc.data?.account.displayName ?? "";
+  const first = name.split(" ")[0];
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
-      <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-        <div>
-          <p className="text-sm text-muted">Dashboard</p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight">Good morning, {user.displayName}.</h1>
-          <p className="mt-2 text-muted">Welcome back to your ScottyWorld workspace.</p>
-        </div>
-        <div className="rounded-2xl border border-border bg-card px-5 py-4">
-          <div className="flex items-center gap-3">
-            <Coins className="text-brand-500" size={20} />
-            <div><p className="text-xs text-muted">Scotty Coins</p><p className="font-bold">0 SC</p></div>
-          </div>
+    <Page>
+      {/* welcome */}
+      <div className="mb-4">
+        <h1 className="text-2xl font-extrabold">{greeting()}{first ? `, ${first}` : ""} <span>👋</span></h1>
+        <p className="mt-0.5 text-sm text-subtle">Ready to learn, build and grow today?</p>
+      </div>
+
+      {/* what's on your mind */}
+      <div className="sw-card p-3.5">
+        <Link href="/community/create" className="flex items-center gap-3 rounded-xl border border-border px-3 py-2.5 text-subtle">
+          <Avatar name={name || "You"} src={acc.data?.account.avatarUrl} size={34} /><span className="text-[15px]">What&apos;s on your mind?</span>
+        </Link>
+        <div className="mt-2.5 grid grid-cols-3 gap-1 text-[13px] font-semibold text-subtle">
+          {[[ImageIcon, "Photo", "photo"], [Video, "Video", "video"], [Pencil, "Write", "write"]].map(([I, l, k]: any) => (
+            <Link key={k} href={`/community/create?kind=${k}`} className="flex items-center justify-center gap-2 rounded-lg py-2 hover:bg-soft"><I size={18} className="text-brand-600" />{l}</Link>
+          ))}
         </div>
       </div>
 
-      <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          ["Active Bots", "0", Bot],
-          ["Academy Progress", "0%", GraduationCap],
-          ["Community Activity", "0", Users],
-          ["Security", "Protected", ShieldCheck],
-        ].map(([label, value, Icon]) => {
-          const I = Icon as typeof Bot;
-          return <div key={label as string} className="rounded-2xl border border-border bg-card p-5">
-            <I size={19} className="text-brand-500" />
-            <p className="mt-4 text-sm text-muted">{label as string}</p>
-            <p className="mt-1 text-2xl font-bold">{value as string}</p>
-          </div>;
-        })}
-      </section>
+      {/* recent activity */}
+      <Section title="Recent activity" href="/notifications">
+        {notifs.loading ? <ListSkeleton rows={2} /> : !notifs.data?.notifications.length ? (
+          <Empty icon={<Bell size={26} />} title="Nothing yet" text="Likes, replies, coin rewards and updates will show up here." />
+        ) : (
+          <div className="sw-card divide-y divide-border overflow-hidden">
+            {notifs.data.notifications.slice(0, 4).map((n) => {
+              const m = ICON[n.type] ?? ICON.SYSTEM; const I = m.i;
+              return (
+                <div key={n.id} className="flex items-center gap-3 px-4 py-3">
+                  <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${m.c}`}><I size={18} /></span>
+                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{n.title}</p><p className="truncate text-[13px] text-subtle">{n.body}</p></div>
+                  <span className="text-xs text-subtle">{timeAgo(n.createdAt)}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Section>
 
-      <section className="mt-10">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold">Quick actions</h2>
-          <Link href="/settings" className="text-sm text-brand-500">Customize</Link>
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {actions.map(([title, href, Icon]) => {
-            const I = Icon as typeof Bot;
-            return <Link key={title as string} href={href as string} className="group rounded-2xl border border-border bg-card p-5 hover:border-brand-500/40">
-              <div className="flex items-center justify-between">
-                <I size={21} className="text-brand-500" />
-                <ArrowRight size={18} className="text-muted transition group-hover:translate-x-1 group-hover:text-foreground" />
-              </div>
-              <p className="mt-6 font-semibold">{title as string}</p>
-            </Link>;
-          })}
-        </div>
-      </section>
-    </div>
+      {/* for you */}
+      <Section title="For you" href="/community" action="Following">
+        {feed.loading ? <ListSkeleton rows={2} /> : !feed.data?.posts.length ? (
+          <Empty icon={<MessageCircle size={26} />} title="The feed is waiting for you" text="Be the first to share something with the community." action={<Link href="/community/create" className="sw-btn">Create a post</Link>} />
+        ) : (
+          <div className="space-y-3">{feed.data.posts.slice(0, 3).map((p) => <PostCard key={p.id} post={p} />)}
+            <Link href="/community" className="sw-btn-ghost w-full">See more in Community</Link></div>
+        )}
+      </Section>
+
+      {/* people you may know */}
+      <Section title="People you may know"><PeopleYouMayKnow /></Section>
+    </Page>
   );
 }

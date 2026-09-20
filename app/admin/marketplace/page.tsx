@@ -1,4 +1,22 @@
 "use client";
-import {useEffect,useState}from"react";
-export default function Marketplace(){const[rows,setRows]=useState<any[]>([]);const update=async(id:string,status:string)=>{await fetch("/api/admin/marketplace",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,status})});setRows(x=>x.map(r=>r.id===id?{...r,status}:r))};useEffect(()=>{fetch("/api/admin/marketplace").then(r=>r.ok?r.json():[]).then(setRows)},[]);
-return <div className="space-y-5"><div><h1 className="text-2xl font-bold">Marketplace moderation</h1><p className="text-sm text-muted-foreground">Review and change product publication status.</p></div><div className="grid gap-3">{rows.map(r=><div key={r.id} className="rounded-2xl border bg-card p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><div className="font-semibold">{r.name}</div><div className="text-xs text-muted-foreground">{r.type} · {r.seller?.username||r.seller?.email||"Seller"}</div></div><select value={r.status} onChange={e=>update(r.id,e.target.value)} className="rounded-lg border bg-background px-2 py-1 text-sm"><option>DRAFT</option><option>PUBLISHED</option><option>ARCHIVED</option><option>SUSPENDED</option></select></div>)}</div></div>}
+
+import { ListSkeleton } from "@/components/ui";
+import { AdminHeader, Table, Td } from "@/components/admin/table";
+import { api, useApi } from "@/lib/client";
+import { toast } from "@/components/toast";
+
+type P = { id: string; title: string; type: string; priceCoins: number; status: string; seller: { username: string | null; email: string } };
+
+export default function AdminMarketplace() {
+  const { data, setData } = useApi<P[]>("/api/admin/marketplace");
+  async function set(id: string, status: string) {
+    try { await api("/api/admin/marketplace", { method: "PATCH", json: { id, status } }); setData((d: any) => d?.map((r: P) => (r.id === id ? { ...r, status } : r))); } catch (e) { toast((e as Error).message, "err"); }
+  }
+  return (
+    <div>
+      <AdminHeader title="Marketplace moderation" sub="Publish, archive or suspend items. The platform keeps 5% of every sale." />
+      {!data ? <ListSkeleton /> : <Table head={["Item", "Seller", "Price", "Status"]}>{data.map((r) => <tr key={r.id}><Td><p className="font-semibold">{r.title}</p><p className="text-xs text-subtle">{r.type}</p></Td><Td>@{r.seller.username ?? r.seller.email}</Td><Td>{r.priceCoins} SC</Td>
+        <Td><select value={r.status} onChange={(e) => set(r.id, e.target.value)} className="sw-input !w-auto !py-1.5 text-xs">{["DRAFT", "PUBLISHED", "ARCHIVED", "SUSPENDED"].map((s) => <option key={s}>{s}</option>)}</select></Td></tr>)}</Table>}
+    </div>
+  );
+}

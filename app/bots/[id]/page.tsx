@@ -1,92 +1,89 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import { Bot, Play, Square, Rocket, FlaskConical, Activity } from "lucide-react";
+import Link from "next/link";
+import { use, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Bot, Clock, Download, Play, RefreshCw, Square, Terminal, Trash2, Plus } from "lucide-react";
+import { Badge, ErrorNote, Field, ListSkeleton, Page, Section, Sheet, SubHeader } from "@/components/ui";
+import { api, timeAgo, useApi } from "@/lib/client";
+import { ECONOMY } from "@/lib/economy";
+import { toast } from "@/components/toast";
 
-type BotData = {
-  id: string; name: string; description: string | null; status: string; provider: string; version: string; commandPrefix: string;
-  commands: { id: string; name: string; description: string | null; enabled: boolean }[];
-  events: { id: string; type: string; message: string; createdAt: string }[];
-};
+type Bot = { id: string; name: string; description: string | null; provider: string | null; status: string; commandPrefix: string; hostedUntil: string | null; source: string; generatedFile: string | null; generatedFileName: string | null; commands: Array<{ id: string; name: string; description: string | null; enabled: boolean }>; events: Array<{ id: string; type: string; message: string; createdAt: string }> };
 
-export default function BotDetailsPage() {
-  const params = useParams<{ id: string }>();
-  const [bot, setBot] = useState<BotData | null>(null);
-  const [error, setError] = useState("");
+export default function BotPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const router = useRouter();
+  const { data, loading, error, reload } = useApi<{ bot: Bot }>(`/api/bots/${id}`);
+  const [busy, setBusy] = useState("");
+  const [cmdOpen, setCmdOpen] = useState(false); const [cmd, setCmd] = useState(""); const [cmdDesc, setCmdDesc] = useState("");
+  const b = data?.bot;
 
-  async function load() {
-    const response = await fetch(`/api/bots/${params.id}`);
-    const data = await response.json();
-    if (!response.ok) setError(data.error || "Bot unavailable.");
-    else setBot(data.bot);
+  const msLeft = b?.hostedUntil ? new Date(b.hostedUntil).getTime() - Date.now() : 0;
+  const days = Math.max(0, Math.ceil(msLeft / 86_400_000));
+  const expired = msLeft <= 0;
+
+  async function act(action: string) {
+    setBusy(action);
+    try { const r = await api<{ message: string }>(`/api/bots/${id}/action`, { method: "POST", json: { action } }); toast(r.message); await reload(); }
+    catch (e) { toast((e as Error).message, "err"); } finally { setBusy(""); }
   }
-
-  useEffect(() => { if (params.id) load(); }, [params.id]);
-
-  async function action(action: string) {
-    const response = await fetch(`/api/bots/${params.id}/action`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
-    });
-    const data = await response.json();
-    if (!response.ok) setError(data.error || "Action failed.");
-    else load();
+  async function renew() {
+    setBusy("renew");
+    try { await api(`/api/bots/${id}/renew`, { method: "POST" }); toast("Hosting extended"); await reload(); } catch (e) { toast((e as Error).message, "err"); } finally { setBusy(""); }
   }
-
-  if (error) return <div className="mx-auto max-w-3xl px-4 py-10"><div className="rounded-2xl border border-border bg-card p-7 text-sm">{error}</div></div>;
-  if (!bot) return <div className="mx-auto max-w-5xl px-4 py-10 text-sm text-muted">Loading bot...</div>;
+  async function addCmd() {
+    try { await api(`/api/bots/${id}/commands`, { method: "POST", json: { name: cmd, description: cmdDesc || undefined } }); setCmdOpen(false); setCmd(""); setCmdDesc(""); await reload(); } catch (e) { toast((e as Error).message, "err"); }
+  }
+  async function del() {
+    if (!confirm(`Delete ${b?.name}? This can't be undone.`)) return;
+    try { await api(`/api/bots/${id}`, { method: "DELETE" }); router.push("/bots"); } catch (e) { toast((e as Error).message, "err"); }
+  }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-        <div className="flex items-center gap-4">
-          <div className="grid h-14 w-14 place-items-center rounded-2xl bg-brand-500/10 text-brand-500"><Bot /></div>
-          <div>
-            <h1 className="text-3xl font-bold">{bot.name}</h1>
-            <p className="mt-1 text-sm text-muted">{bot.description || "No description"}</p>
+    <Page>
+      <SubHeader title={b?.name ?? "Bot"} backHref="/bots" right={b && <button onClick={del} aria-label="Delete bot" className="grid h-10 w-10 place-items-center rounded-full text-red-500 hover:bg-red-500/10"><Trash2 size={19} /></button>} />
+      {loading ? <ListSkeleton /> : error || !b ? <ErrorNote message={error || "Bot not found."} /> : (
+        <>
+          <div className="sw-card p-4">
+            <div className="flex items-center gap-3"><span className="grid h-12 w-12 place-items-center rounded-xl bg-cyan-50 text-cyan-600 dark:bg-cyan-500/15"><Bot size={24} /></span>
+              <div className="flex-1"><p className="font-bold">{b.name}</p><p className="text-[13px] text-subtle">{b.provider || "Custom"} · prefix <code>{b.commandPrefix}</code></p></div><Badge tone={b.status === "RUNNING" ? "green" : b.status === "ERROR" ? "red" : "slate"}>{b.status.toLowerCase()}</Badge></div>
+            {b.description && <p className="mt-3 text-sm">{b.description}</p>}
           </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button onClick={() => action("test")} className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm"><FlaskConical size={17} /> Test</button>
-          <button onClick={() => action("start")} className="inline-flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white"><Play size={17} /> Start</button>
-          <button onClick={() => action("stop")} className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm"><Square size={17} /> Stop</button>
-          <button onClick={() => action("deploy")} className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm"><Rocket size={17} /> Deploy</button>
-        </div>
-      </div>
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-border bg-card p-5"><p className="text-xs text-muted">Status</p><p className="mt-2 font-semibold">{bot.status}</p></div>
-        <div className="rounded-2xl border border-border bg-card p-5"><p className="text-xs text-muted">Provider</p><p className="mt-2 font-semibold">{bot.provider}</p></div>
-        <div className="rounded-2xl border border-border bg-card p-5"><p className="text-xs text-muted">Version</p><p className="mt-2 font-semibold">v{bot.version}</p></div>
-      </div>
-
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <section className="rounded-2xl border border-border bg-card p-6">
-          <div className="flex items-center gap-3"><Activity size={19} className="text-brand-500" /><h2 className="font-semibold">Bot events</h2></div>
-          <div className="mt-5 space-y-3">
-            {bot.events.length === 0 ? <p className="text-sm text-muted">No events yet.</p> : bot.events.map(event => (
-              <div key={event.id} className="rounded-xl bg-background p-3">
-                <div className="flex justify-between gap-3 text-xs"><span className="font-medium">{event.type}</span><span className="text-muted">{new Date(event.createdAt).toLocaleString()}</span></div>
-                <p className="mt-1 text-sm text-muted">{event.message}</p>
-              </div>
-            ))}
+          <div className={`mt-3 rounded-2xl border p-4 ${expired ? "border-red-500/30 bg-red-500/10" : days <= 2 ? "border-amber-500/30 bg-amber-500/10" : "border-emerald-500/30 bg-emerald-500/10"}`}>
+            <p className="flex items-center gap-2 text-sm font-bold"><Clock size={16} />{expired ? "Hosting has ended" : `Hosted for ${days} more day${days === 1 ? "" : "s"}`}</p>
+            <p className="mt-1 text-[13px] text-subtle">{expired ? "Renew to bring your bot back online." : `Ends ${new Date(b.hostedUntil!).toLocaleString()}`}</p>
+            <button onClick={renew} disabled={busy === "renew"} className="sw-btn mt-3 w-full"><RefreshCw size={16} className={busy === "renew" ? "animate-spin" : ""} /> Renew {ECONOMY.BOT_RENEW_DAYS} days · {ECONOMY.BOT_RENEW_COINS} SC</button>
           </div>
-        </section>
 
-        <section className="rounded-2xl border border-border bg-card p-6">
-          <h2 className="font-semibold">Commands</h2>
-          <div className="mt-5 space-y-3">
-            {bot.commands.length === 0 ? <p className="text-sm text-muted">No commands configured yet.</p> : bot.commands.map(command => (
-              <div key={command.id} className="flex items-center justify-between rounded-xl bg-background p-3">
-                <div><p className="font-medium">{bot.commandPrefix}{command.name}</p><p className="text-xs text-muted">{command.description || "No description"}</p></div>
-                <span className="text-xs text-muted">{command.enabled ? "Enabled" : "Disabled"}</span>
-              </div>
-            ))}
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <button onClick={() => act("start")} disabled={!!busy || expired} className="sw-btn"><Play size={16} /> Start</button>
+            <button onClick={() => act("stop")} disabled={!!busy} className="sw-btn-ghost"><Square size={15} /> Stop</button>
           </div>
-        </section>
-      </div>
-    </div>
+          {b.generatedFile && <a href={`/api/bots/${b.id}/file`} className="sw-btn-ghost mt-3 w-full"><Download size={17} /> Download {b.generatedFileName || "bot file"}</a>}
+
+          <Section title="Commands">
+            <div className="sw-card divide-y divide-border overflow-hidden">
+              {b.commands.length === 0 && <p className="p-5 text-center text-sm text-subtle">No commands registered yet.</p>}
+              {b.commands.map((c) => <div key={c.id} className="flex items-center gap-3 px-4 py-3"><Terminal size={16} className="text-brand-600" /><div className="min-w-0 flex-1"><p className="font-mono text-sm font-semibold">{b.commandPrefix}{c.name}</p>{c.description && <p className="truncate text-xs text-subtle">{c.description}</p>}</div></div>)}
+              <button onClick={() => setCmdOpen(true)} className="flex w-full items-center justify-center gap-2 py-3 text-sm font-bold text-brand-600 hover:bg-soft"><Plus size={16} /> Add command</button>
+            </div>
+          </Section>
+
+          <Section title="Activity">
+            <div className="sw-card divide-y divide-border overflow-hidden">
+              {b.events.length === 0 ? <p className="p-5 text-center text-sm text-subtle">No activity yet.</p> : b.events.slice(0, 12).map((e) => <div key={e.id} className="flex items-center gap-3 px-4 py-3"><Badge tone="slate">{e.type.toLowerCase()}</Badge><p className="min-w-0 flex-1 truncate text-sm">{e.message}</p><span className="text-xs text-subtle">{timeAgo(e.createdAt)}</span></div>)}
+            </div>
+          </Section>
+
+          <Sheet open={cmdOpen} onClose={() => setCmdOpen(false)} title="Add command">
+            <div className="space-y-4"><Field label="Command name" hint="Letters, numbers, - and _ only"><input value={cmd} onChange={(e) => setCmd(e.target.value)} maxLength={40} placeholder="menu" className="sw-input" /></Field>
+              <Field label="Description"><input value={cmdDesc} onChange={(e) => setCmdDesc(e.target.value)} maxLength={200} className="sw-input" /></Field>
+              <button onClick={addCmd} disabled={!/^[a-zA-Z0-9_-]+$/.test(cmd)} className="sw-btn w-full py-3.5">Add</button></div>
+          </Sheet>
+        </>
+      )}
+    </Page>
   );
 }

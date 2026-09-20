@@ -16,5 +16,6 @@ export async function GET(_: Request, context: { params: Promise<{ slug: string 
   });
 
   if (!course) return NextResponse.json({ error: "Course not found." }, { status: 404 });
-  return NextResponse.json({ course });
+  const done = await db.lessonCompletion.findMany({ where: { userId: user.id, courseId: course.id }, select: { lessonId: true } });
+  return NextResponse.json({ course, completedLessonIds: done.map((d) => d.lessonId) });
 }

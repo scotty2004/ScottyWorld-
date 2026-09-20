@@ -5,6 +5,7 @@ import { createSession } from "@/lib/auth/session";
 import { createEmailVerification } from "@/lib/auth/verification";
 import { registerSchema } from "@/lib/validators/auth";
 import { sendEmail } from "@/lib/integrations/email";
+import { ensureAccountNumber, ensureReferralCode } from "@/lib/coins/service";
 
 export async function POST(request: Request) {
   try {
@@ -12,10 +13,11 @@ export async function POST(request: Request) {
     const parsed = registerSchema.safeParse(body);
 
     if (!parsed.success) {
+      console.error("REGISTER_VALIDATION_FAILED", JSON.stringify(parsed.error.flatten()));
       return NextResponse.json({ error: "Invalid registration details." }, { status: 400 });
     }
 
-    const { email, username, displayName, password } = parsed.data;
+    const { email, username, displayName, password, ref } = parsed.data;
     const normalizedEmail = email.toLowerCase();
     const normalizedUsername = username.toLowerCase();
 
@@ -49,6 +51,16 @@ export async function POST(request: Request) {
       select: { id: true },
     });
 
+    // wallet number + referral code, and attribute the referrer if a valid ?ref= code was used
+    await ensureAccountNumber(user.id).catch(() => null);
+    await ensureReferralCode(user.id, normalizedUsername).catch(() => null);
+    if (ref) {
+      const referrer = await db.user.findUnique({ where: { referralCode: ref.toLowerCase() }, select: { id: true } });
+      if (referrer && referrer.id !== user.id) {
+        await db.referral.create({ data: { referrerId: referrer.id, referredId: user.id, code: ref.toLowerCase() } }).catch(() => null);
+      }
+    }
+
     await createSession(user.id);
 
     try {
@@ -68,7 +80,8 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ ok: true }, { status: 201 });
-  } catch {
+  } catch (err) {
+    console.error("REGISTER_FAILED", err);
     return NextResponse.json({ error: "Unable to create account." }, { status: 500 });
   }
 }

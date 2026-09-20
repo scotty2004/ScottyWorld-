@@ -13,6 +13,10 @@ export const developerTools: DeveloperTool[] = [
   { id: "regex", name: "Regex Tester", description: "Test a regular expression against text.", category: "Text" },
   { id: "jwt", name: "JWT Inspector", description: "Decode JWT header and payload locally without verifying signatures.", category: "Security" },
   { id: "html", name: "HTML Escape", description: "Escape HTML-sensitive characters.", category: "Web" },
+  { id: "sha256", name: "SHA-256 Hash", description: "Create a SHA-256 hash of any text.", category: "Security" },
+  { id: "timestamp", name: "Timestamp Converter", description: "Convert Unix time to a readable date and back.", category: "Utilities" },
+  { id: "json-min", name: "JSON Minifier", description: "Strip whitespace from JSON.", category: "Data" },
+  { id: "slug", name: "Slug Generator", description: "Turn a title into a URL-friendly slug.", category: "Web" },
   { id: "markdown", name: "Markdown Preview", description: "Preview basic Markdown safely.", category: "Writing" },
 ];
 

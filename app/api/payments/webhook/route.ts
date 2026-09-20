@@ -19,6 +19,16 @@ export async function POST(req: NextRequest) {
     });
     if (existing) return NextResponse.json({ received: true, duplicate: true });
 
+    // deposit.completed → credit coins exactly once
+    if (event.type === "deposit.completed" && (event as any).depositId) {
+      await prisma.$transaction(async (tx) => {
+        const claimed = await tx.coinDeposit.updateMany({ where: { id: (event as any).depositId, status: "PENDING" }, data: { status: "PAID", paidAt: new Date(), providerRef: event.id } });
+        if (claimed.count === 0) return;
+        const dep = await tx.coinDeposit.findUniqueOrThrow({ where: { id: (event as any).depositId } });
+        await tx.coinTransaction.create({ data: { userId: dep.userId, amount: dep.coins, type: "EARN", reason: `Deposit $${(dep.usdCents / 100).toFixed(2)}`, reference: `deposit:${dep.id}` } });
+      });
+    }
+
     if (event.subscriptionId && event.status) {
       const allowed = ["ACTIVE", "TRIALING", "PAST_DUE", "CANCELLED", "EXPIRED"];
       if (allowed.includes(event.status)) {
@@ -29,10 +39,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (event.userId) {
+    {
       await prisma.auditLog.create({
         data: {
-          actorId: event.userId,
+          actorId: event.userId ?? null,
           action: "PAYMENT_WEBHOOK_RECEIVED",
           targetType: "PaymentEvent",
           targetId: event.id,

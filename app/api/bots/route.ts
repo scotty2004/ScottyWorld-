@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { botCreateSchema } from "@/lib/bots/validation";
 import { recordBotEvent } from "@/lib/bots/events";
 import { rateLimit } from "@/lib/security/rate-limit";
+import { getEntitlements } from "@/lib/pro/plans";
+import { freeTrialEnd, hostingState } from "@/lib/bots/hosting";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -15,7 +17,19 @@ export async function GET() {
     include: { _count: { select: { commands: true, events: true } } },
   });
 
-  return NextResponse.json({ bots });
+  // lazy enforcement: hosting that has run out pauses the bot
+  const lapsed = bots.filter((b) => hostingState(b.hostedUntil).state === "EXPIRED" && ["RUNNING", "DEPLOYING", "TESTING"].includes(b.status));
+  if (lapsed.length) {
+    await db.bot.updateMany({ where: { id: { in: lapsed.map((b) => b.id) } }, data: { status: "PAUSED" } });
+    lapsed.forEach((b) => { b.status = "PAUSED" as any; });
+  }
+
+  const ent = await getEntitlements(user.id);
+  return NextResponse.json({
+    bots: bots.map(({ generatedFile, ...b }) => ({ ...b, hasFile: Boolean(generatedFile), hosting: hostingState(b.hostedUntil) })),
+    limit: ent.bots,
+    tier: ent.tier,
+  });
 }
 
 export async function POST(request: Request) {
@@ -26,6 +40,10 @@ export async function POST(request: Request) {
   if (!limit.allowed) return NextResponse.json({ error: "Too many bot creation requests." }, { status: 429 });
 
   try {
+    const ent = await getEntitlements(user.id);
+    const owned = await db.bot.count({ where: { ownerId: user.id } });
+    if (ent.bots !== -1 && owned >= ent.bots) return NextResponse.json({ error: `Your ${ent.tier === "FREE" ? "free" : ent.tier.toLowerCase()} plan allows ${ent.bots} bot${ent.bots === 1 ? "" : "s"}. Upgrade to Pro for more.` }, { status: 403 });
+
     const parsed = botCreateSchema.safeParse(await request.json());
     if (!parsed.success) return NextResponse.json({ error: "Invalid bot configuration.", issues: parsed.error.flatten() }, { status: 400 });
 
@@ -44,6 +62,8 @@ export async function POST(request: Request) {
         provider: parsed.data.provider,
         commandPrefix: parsed.data.commandPrefix,
         status: "DRAFT",
+        hostedUntil: freeTrialEnd(),
+        trialUsed: true,
       },
     });
 

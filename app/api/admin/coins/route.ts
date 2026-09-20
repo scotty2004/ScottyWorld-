@@ -18,7 +18,12 @@ export async function POST(req: NextRequest) {
   try {
     const admin = await requireAdmin(["SUPER_ADMIN","ADMIN","FINANCE_MANAGER"]);
     const body = await req.json();
-    const userId = String(body.userId || "");
+    let userId = String(body.userId || "");
+    if (!userId && body.username) {
+      const target = await prisma.user.findUnique({ where: { username: String(body.username).toLowerCase() }, select: { id: true } });
+      if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
+      userId = target.id;
+    }
     const amount = Number(body.amount);
     const reason = String(body.reason || "").trim();
     if (!userId || !Number.isInteger(amount) || amount === 0 || !reason || reason.length > 240)

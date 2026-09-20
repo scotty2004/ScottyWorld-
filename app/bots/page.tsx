@@ -1,76 +1,74 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Bot, Plus, Activity, ArrowRight } from "lucide-react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Bot, Clock, Coins, Plus, RefreshCw, Sparkles, Zap } from "lucide-react";
+import { Badge, Empty, ErrorNote, ListSkeleton, Page } from "@/components/ui";
+import { BotGenerator } from "@/components/bot-generator";
+import { api, useApi } from "@/lib/client";
+import { ECONOMY } from "@/lib/economy";
+import { toast } from "@/components/toast";
 
-type BotRecord = {
-  id: string;
-  name: string;
-  description: string | null;
-  status: string;
-  provider: string;
-  version: string;
-  _count: { commands: number; events: number };
-};
+type B = { id: string; name: string; status: string; provider: string | null; hostedUntil: string | null; hasFile: boolean; source: string; hosting: { state: "ACTIVE" | "EXPIRING" | "EXPIRED"; daysLeft: number } };
 
-export default function BotsPage() {
-  const [bots, setBots] = useState<BotRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+function Bots() {
+  const { data, loading, error, reload } = useApi<{ bots: B[]; limit: number; tier: string }>("/api/bots");
+  const coins = useApi<{ balance: number }>("/api/coins");
+  const [gen, setGen] = useState(false);
+  const [renewing, setRenewing] = useState<string | null>(null);
+  const sp = useSearchParams();
+  useEffect(() => { if (sp.get("generate")) setGen(true); }, [sp]);
 
-  async function load() {
-    const response = await fetch("/api/bots");
-    if (response.ok) setBots((await response.json()).bots);
-    setLoading(false);
+  async function renew(id: string) {
+    setRenewing(id);
+    try { await api(`/api/bots/${id}/renew`, { method: "POST" }); toast(`Hosting extended by ${ECONOMY.BOT_RENEW_DAYS} days`); await Promise.all([reload(), coins.reload()]); }
+    catch (e: any) { toast(e.message, "err"); } finally { setRenewing(null); }
   }
 
-  useEffect(() => { load(); }, []);
+  const bots = data?.bots ?? [];
+  const tone = { ACTIVE: "green", EXPIRING: "amber", EXPIRED: "red" } as const;
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Bot Studio</h1>
-          <p className="mt-2 text-muted">Create, configure, test and manage your ScottyWorld bots.</p>
+    <Page>
+      <div className="mb-3 flex items-center justify-between"><h1 className="text-2xl font-extrabold">Bots</h1>
+        <Link href="/coins" className="flex items-center gap-1.5 rounded-full bg-amber-500/10 px-3 py-1.5 text-sm font-bold text-amber-700 dark:text-amber-300"><Coins size={15} />{coins.data?.balance ?? "…"} SC</Link></div>
+
+      <div className="sw-card overflow-hidden">
+        <div className="wallet-card p-4 text-white">
+          <p className="flex items-center gap-2 text-sm font-bold"><Zap size={16} /> Bot hosting</p>
+          <p className="mt-1 text-[13px] text-white/85">Every bot is hosted <b>free for {ECONOMY.BOT_FREE_DAYS} days</b>. Keep it online by renewing for <b>{ECONOMY.BOT_RENEW_COINS} SC</b> per {ECONOMY.BOT_RENEW_DAYS} days — earn coins from tasks.</p>
         </div>
-        <Link href="/bots/create" className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-3 text-sm font-semibold text-white">
-          <Plus size={18} /> Create bot
-        </Link>
+        <div className="grid grid-cols-2 divide-x divide-border">
+          <button onClick={() => setGen(true)} className="flex items-center justify-center gap-2 py-3.5 text-sm font-bold text-brand-600 hover:bg-soft"><Sparkles size={17} /> Generate with AI</button>
+          <Link href="/bots/create" className="flex items-center justify-center gap-2 py-3.5 text-sm font-bold text-brand-600 hover:bg-soft"><Plus size={17} /> Add my bot</Link>
+        </div>
       </div>
 
-      {loading ? (
-        <div className="mt-8 rounded-2xl border border-border bg-card p-8 text-sm text-muted">Loading your bots...</div>
-      ) : bots.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-border bg-card p-10 text-center">
-          <Bot className="mx-auto text-brand-500" size={34} />
-          <h2 className="mt-4 font-semibold">No bots yet</h2>
-          <p className="mt-2 text-sm text-muted">Start with the Bot Factory and create your first project.</p>
-          <Link href="/bots/create" className="mt-5 inline-flex rounded-xl bg-brand-500 px-5 py-3 text-sm font-semibold text-white">Open Bot Factory</Link>
-        </div>
+      <div className="mb-2 mt-6 flex items-center justify-between"><h2 className="text-[15px] font-bold">My bots</h2>{data && <span className="text-xs text-subtle">{bots.length}/{data.limit === -1 ? "∞" : data.limit} · {data.tier === "FREE" ? <Link href="/pro" className="font-semibold text-brand-600">Get more</Link> : data.tier}</span>}</div>
+      {error && <ErrorNote message={error} onRetry={reload} />}
+      {loading ? <ListSkeleton rows={2} /> : bots.length === 0 ? (
+        <Empty icon={<Bot size={28} />} title="No bots yet" text="Generate a WhatsApp bot file with Scotty AI in under a minute." action={<button onClick={() => setGen(true)} className="sw-btn"><Sparkles size={17} /> Generate my first bot</button>} />
       ) : (
-        <div className="mt-8 grid gap-4 md:grid-cols-2">
-          {bots.map(bot => (
-            <Link key={bot.id} href={`/bots/${bot.id}`} className="rounded-2xl border border-border bg-card p-6 hover:border-brand-500">
-              <div className="flex items-start gap-4">
-                <div className="grid h-11 w-11 place-items-center rounded-xl bg-brand-500/10 text-brand-500"><Bot /></div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-3">
-                    <h2 className="font-semibold">{bot.name}</h2>
-                    <span className="rounded-full border border-border px-2.5 py-1 text-xs">{bot.status}</span>
-                  </div>
-                  <p className="mt-2 line-clamp-2 text-sm text-muted">{bot.description || "No description yet."}</p>
-                  <div className="mt-5 flex items-center gap-4 text-xs text-muted">
-                    <span>{bot.provider}</span>
-                    <span>v{bot.version}</span>
-                    <span>{bot._count.commands} commands</span>
-                    <span className="ml-auto"><ArrowRight size={16} /></span>
-                  </div>
-                </div>
+        <div className="space-y-3">
+          {bots.map((b) => (
+            <div key={b.id} className="sw-card p-4">
+              <Link href={`/bots/${b.id}`} className="flex items-center gap-3">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-cyan-50 text-cyan-600 dark:bg-cyan-500/15"><Bot size={22} /></span>
+                <div className="min-w-0 flex-1"><p className="truncate font-bold">{b.name}</p><p className="text-[13px] text-subtle">{b.source === "generated" ? "Generated by Scotty AI" : b.provider || "Custom bot"} · {b.status.toLowerCase()}</p></div>
+                <Badge tone={tone[b.hosting.state]}>{b.hosting.state === "EXPIRED" ? "Expired" : b.hosting.state === "EXPIRING" ? "Expiring" : "Hosted"}</Badge>
+              </Link>
+              <div className="mt-3 flex items-center gap-3 border-t border-border pt-3">
+                <p className="flex flex-1 items-center gap-1.5 text-[13px] text-subtle"><Clock size={14} />{b.hosting.state === "EXPIRED" ? "Hosting ended — renew to bring it back" : `${b.hosting.daysLeft} day${b.hosting.daysLeft === 1 ? "" : "s"} left`}</p>
+                <button onClick={() => renew(b.id)} disabled={renewing === b.id} className="sw-btn !px-3.5 !py-2 text-xs"><RefreshCw size={14} className={renewing === b.id ? "animate-spin" : ""} /> Renew · {ECONOMY.BOT_RENEW_COINS} SC</button>
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       )}
-    </div>
+      <BotGenerator open={gen} onClose={() => setGen(false)} onDone={reload} />
+    </Page>
   );
 }
+
+export default function BotsPage() { return <Suspense><Bots /></Suspense>; }

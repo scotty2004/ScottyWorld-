@@ -1,68 +1,56 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
+import { FormEvent, Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
+import { AuthShell, authBtn, authInput } from "@/components/auth-shell";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const next = useSearchParams().get("next");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [need2fa, setNeed2fa] = useState(false);
+  const [creds, setCreds] = useState({ email: "", password: "" });
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError("");
-    setLoading(true);
-
-    const form = new FormData(event.currentTarget);
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: String(form.get("email") || ""),
-        password: String(form.get("password") || ""),
-      }),
-    });
-
-    const data = await response.json();
-    setLoading(false);
-
-    if (!response.ok) {
-      setError(data.error || "Unable to sign in.");
-      return;
-    }
-
-    router.push("/dashboard");
-    router.refresh();
+  async function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(""); setLoading(true);
+    const form = new FormData(e.currentTarget);
+    const payload = { email: creds.email || String(form.get("email") || ""), password: creds.password || String(form.get("password") || ""), code: need2fa ? String(form.get("code") || "") : undefined };
+    try {
+      const res = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const data = await res.json().catch(() => ({}));
+      if (data.twoFactorRequired) { setCreds({ email: payload.email, password: payload.password }); setNeed2fa(true); return; }
+      if (!res.ok) { setError(data.error || "Unable to sign in."); return; }
+      router.push(next && next.startsWith("/") ? next : "/dashboard");
+      router.refresh();
+    } catch { setError("Network problem. Check your connection."); }
+    finally { setLoading(false); }
   }
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md items-center px-5 py-12">
-      <div className="w-full rounded-3xl border border-border bg-card p-7">
-        <h1 className="text-2xl font-bold">Welcome back</h1>
-        <p className="mt-2 text-sm text-muted">Sign in to your ScottyWorld account.</p>
-        <form onSubmit={submit} className="mt-7 space-y-4">
-          <label className="block text-sm font-medium">Email
-            <input name="email" type="email" required className="mt-2 w-full rounded-xl border border-border bg-background px-4 py-3 outline-none focus:border-brand-500" placeholder="you@example.com" />
-          </label>
-          <label className="block text-sm font-medium">Password
-            <input name="password" type="password" required className="mt-2 w-full rounded-xl border border-border bg-background px-4 py-3 outline-none focus:border-brand-500" />
-          </label>
-
-          {error && <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-500">{error}</p>}
-
-          <button disabled={loading} className="w-full rounded-xl bg-brand-500 py-3 font-semibold text-white disabled:opacity-60">
-            {loading ? "Signing in..." : "Sign in"}
-          </button>
-        </form>
-
-        <GoogleSignInButton />
-
-        <p className="mt-6 text-center text-sm text-muted">
-          New to ScottyWorld? <Link href="/register" className="text-brand-500">Create an account</Link>
-        </p>
-      </div>
-    </div>
+    <AuthShell title={need2fa ? "Two-step verification" : "Welcome back"} subtitle={need2fa ? "Enter the 6-digit code from your authenticator app." : "Sign in to your ScottyWorld account."}
+      footer={<>New to ScottyWorld? <Link href="/register" className="font-semibold text-blue-400">Create an account</Link></>}>
+      <form onSubmit={submit} className="space-y-4">
+        {!need2fa ? (
+          <>
+            <input name="email" type="email" required autoComplete="email" placeholder="Email" className={authInput} />
+            <input name="password" type="password" required autoComplete="current-password" placeholder="Password" className={authInput} />
+            <div className="text-right"><Link href="/forgot-password" className="text-xs font-semibold text-blue-400">Forgot password?</Link></div>
+          </>
+        ) : (
+          <input name="code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required autoFocus placeholder="123456" className={`${authInput} text-center text-2xl tracking-[.5em]`} />
+        )}
+        {error && <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</p>}
+        <button disabled={loading} className={authBtn}>{loading ? "Please wait…" : need2fa ? "Verify & sign in" : "Sign in"}</button>
+      </form>
+      {!need2fa && <div className="mt-5"><GoogleSignInButton /></div>}
+    </AuthShell>
   );
+}
+
+export default function LoginPage() {
+  return <Suspense><LoginForm /></Suspense>;
 }

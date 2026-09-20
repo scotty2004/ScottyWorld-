@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export type UploadDescriptor = {
@@ -54,4 +54,13 @@ export async function createUploadUrl(input: UploadDescriptor) {
   const publicUrl = base ? `${base}/${input.key}` : undefined;
 
   return { uploadUrl, key: input.key, publicUrl, expiresIn };
+}
+
+
+/** Short-lived presigned GET so users can download their own files. */
+export async function createDownloadUrl(key: string, filename: string) {
+  const bucket = process.env.S3_BUCKET;
+  if (!bucket) throw new Error("STORAGE_NOT_CONFIGURED");
+  const command = new GetObjectCommand({ Bucket: bucket, Key: key, ResponseContentDisposition: `attachment; filename="${filename.replace(/[^a-zA-Z0-9._-]/g, "_")}"` });
+  return getSignedUrl(getClient(), command, { expiresIn: 120 });
 }
