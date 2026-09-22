@@ -15,7 +15,8 @@ export function middleware(request: NextRequest) {
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-  response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
+  // "same-origin" breaks the Google sign-in popup (it can't hand the credential back)
+  response.headers.set("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
   response.headers.set("X-DNS-Prefetch-Control", "on");
 
   if (process.env.NODE_ENV === "production") {
@@ -40,5 +41,7 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  // api/upload and api/files carry large file bodies/streams (up to 100 MB). Running middleware on them makes
+  // Next.js buffer (and truncate) the body, so they are excluded; both routes check the session themselves.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/upload|api/files|.*\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 };

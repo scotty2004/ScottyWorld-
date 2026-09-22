@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { me, unauth, bad } from "@/lib/api";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { ensureAccountNumber } from "@/lib/coins/service";
+import { isOwnerAccount } from "@/lib/admin/owner";
 
 export async function GET() {
   const user = await me();
@@ -15,7 +16,7 @@ export async function GET() {
   ]);
   return NextResponse.json({
     account: {
-      id: user.id, email: user.email, username: user.username, displayName: user.displayName, role: user.role,
+      id: user.id, email: user.email, username: user.username, displayName: user.displayName, role: user.role, isOwner: isOwnerAccount(user),
       bio: user.profile?.bio ?? "", avatarUrl: user.profile?.avatarUrl ?? null, private: user.profile?.public === false,
       emailVerified: Boolean(user.emailVerified), twoFactor: user.twoFactorEnabled, hasPassword: Boolean(user.passwordHash),
       accountNumber, plan: sub?.plan?.slug ?? null, planName: sub?.plan?.name ?? null, createdAt: user.createdAt,

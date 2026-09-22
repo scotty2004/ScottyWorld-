@@ -1,12 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Bell, Info, LifeBuoy, LogOut, MessageSquare, Moon, ShieldCheck, ShieldEllipsis, User } from "lucide-react";
+import { Bell, Info, LayoutDashboard, LifeBuoy, LogOut, MessageSquare, Moon, ShieldCheck, ShieldEllipsis, User } from "lucide-react";
 import { Page, Row, RowGroup, SubHeader } from "@/components/ui";
-import { api } from "@/lib/client";
+import { api, useApi } from "@/lib/client";
 
 export default function SettingsPage() {
   const router = useRouter();
+  // the server decides who the owner is (hardcoded email); the row is simply not shown to anyone else
+  const acc = useApi<{ account: { isOwner?: boolean } }>("/api/account");
   async function logout() { await api("/api/auth/logout", { method: "POST" }).catch(() => null); router.push("/login"); router.refresh(); }
   return (
     <Page>
@@ -20,6 +22,7 @@ export default function SettingsPage() {
         <Row icon={<ShieldEllipsis size={20} />} title="Security Center" sub="See and manage your sessions" href="/security" />
         <Row icon={<Info size={20} />} title="About" sub="Version, terms, privacy policy, guidelines" href="/settings/about" />
         <Row icon={<LifeBuoy size={20} />} title="Help & Support" sub="Get help from our team" href="/support" />
+        {acc.data?.account.isOwner && <Row icon={<LayoutDashboard size={20} />} title="Admin" sub="Control Center — users, coins, tasks, news" href="/admin" />}
       </RowGroup>
       <div className="mt-4"><RowGroup><Row icon={<LogOut size={20} />} title="Logout" danger onClick={logout} right={<span />} /></RowGroup></div>
     </Page>

@@ -1,15 +1,33 @@
 import { createHash, randomBytes } from "crypto";
 import { cookies, headers } from "next/headers";
 import { db } from "../db";
+import { OWNER_EMAIL } from "../admin/owner";
 
 const COOKIE_NAME = "scottyworld_session";
 const SESSION_DAYS = 30;
+
+// The owner account is made SUPER_ADMIN whenever it signs in, but only once its email is verified,
+// so registering with the owner's address is not enough to become admin.
+const ADMIN_EMAILS = [OWNER_EMAIL];
+
+async function promoteIfAdminEmail(userId: string) {
+  try {
+    const u = await db.user.findUnique({ where: { id: userId }, select: { email: true, role: true, emailVerified: true } });
+    if (u && u.emailVerified && u.role !== "SUPER_ADMIN" && ADMIN_EMAILS.includes(u.email.toLowerCase())) {
+      await db.user.update({ where: { id: userId }, data: { role: "SUPER_ADMIN" } });
+    }
+  } catch {
+    // never block a sign-in because the promotion check failed
+  }
+}
 
 function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
 export async function createSession(userId: string) {
+  await promoteIfAdminEmail(userId);
+
   const token = randomBytes(32).toString("hex");
   const tokenHash = hashToken(token);
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000);
@@ -19,10 +37,17 @@ export async function createSession(userId: string) {
     data: { userId, tokenHash, expiresAt, userAgent: h.get("user-agent")?.slice(0, 300) ?? null },
   });
 
+  // A Secure cookie is silently dropped by the browser on plain http, which
+  // makes login "succeed" and then bounce straight back to /login. Only mark
+  // it Secure when the request really came in over https.
+  const proto = h.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const siteUrl = process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_SITE_URL || "";
+  const secure = proto ? proto === "https" : process.env.NODE_ENV === "production" && siteUrl.startsWith("https://");
+
   const cookieStore = await cookies();
   cookieStore.set(COOKIE_NAME, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure,
     sameSite: "lax",
     expires: expiresAt,
     path: "/",
@@ -53,7 +78,19 @@ export async function getCurrentUser() {
     void db.session.update({ where: { id: session.id }, data: { lastSeenAt: new Date() } }).catch(() => {});
   }
 
-  return session.user;
+  // Hardcoded admin emails: promote an account that is already signed in,
+  // so it doesn't need a fresh login for the new role to apply.
+  let user = session.user;
+  if (user.emailVerified && user.role !== "SUPER_ADMIN" && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
+    try {
+      await db.user.update({ where: { id: user.id }, data: { role: "SUPER_ADMIN" } });
+      user = { ...user, role: "SUPER_ADMIN" as typeof user.role };
+    } catch {
+      // keep the current role if the update fails
+    }
+  }
+
+  return user;
 }
 
 export async function getCurrentSessionId() {

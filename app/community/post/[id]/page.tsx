@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useCallback, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, CornerDownRight, Send } from "lucide-react";
 import { Avatar, ListSkeleton, ErrorNote } from "@/components/ui";
@@ -19,9 +20,9 @@ function Thread({ items, parent, depth, onReply }: { items: C[]; parent: string 
       {list.map((c) => (
         <div key={c.id} className="py-2.5">
           <div className="flex gap-2.5">
-            <Avatar name={c.author.displayName} src={c.author.avatarUrl} size={32} />
+            <Link href={`/u/${c.author.username}`} aria-label={`Open ${c.author.displayName}'s profile`} className="shrink-0"><Avatar name={c.author.displayName} src={c.author.avatarUrl} size={32} /></Link>
             <div className="min-w-0 flex-1">
-              <p className="text-[13px]"><b>{c.author.displayName}</b> <span className="text-subtle">@{c.author.username} · {timeAgo(c.createdAt)}</span></p>
+              <p className="text-[13px]"><Link href={`/u/${c.author.username}`} className="hover:underline"><b>{c.author.displayName}</b> <span className="text-subtle">@{c.author.username}</span></Link> <span className="text-subtle">· {timeAgo(c.createdAt)}</span></p>
               <p className="mt-0.5 whitespace-pre-wrap break-words text-[15px]">{c.content}</p>
               {depth < 4 && <button onClick={() => onReply(c)} className="mt-1 flex items-center gap-1 text-xs font-semibold text-subtle hover:text-brand-600"><CornerDownRight size={13} /> Reply</button>}
             </div>

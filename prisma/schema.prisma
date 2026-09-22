@@ -169,6 +169,7 @@ model User {
   twoFactorEnabled Boolean @default(false)
   accountNumber String?   @unique
   twoFactorSecret String?
+  dateOfBirth   DateTime?
   referralCode  String?   @unique
   lastSeenAt    DateTime?
   createdAt     DateTime  @default(now())
@@ -1125,4 +1126,28 @@ model LessonCompletion {
 
   @@unique([userId, lessonId])
   @@index([userId, courseId])
+}
+
+// Fallback file storage used when no S3/R2 bucket is connected (or the object isn't in the bucket).
+// Files are split into 4 MB chunks so large videos never have to sit in memory in one piece.
+model StoredFile {
+  id          String        @id @default(cuid())
+  key         String        @unique
+  ownerId     String
+  contentType String        @default("application/octet-stream")
+  sizeBytes   Int           @default(0)
+  createdAt   DateTime      @default(now())
+  chunks      StoredChunk[]
+
+  @@index([ownerId])
+}
+
+model StoredChunk {
+  id     String     @id @default(cuid())
+  fileId String
+  index  Int
+  data   Bytes
+  file   StoredFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([fileId, index])
 }

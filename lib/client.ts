@@ -85,25 +85,64 @@ export const fileToDataUrl = (file: File) => new Promise<string>((resolve, rejec
   r.readAsDataURL(file);
 });
 
+/** PUTs a file with progress. Rejects with a readable message (uses the server's error text when it sends one). */
+function putFile(url: string, file: File, type: string, onProgress?: (pct: number) => void) {
+  return new Promise<void>((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open("PUT", url);
+    x.setRequestHeader("Content-Type", type);
+    if (onProgress) x.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100)); };
+    x.onload = () => {
+      if (x.status >= 200 && x.status < 300) return resolve();
+      let msg = "";
+      try { msg = JSON.parse(x.responseText)?.error || ""; } catch { /* storage answered with XML/HTML */ }
+      if (x.status === 401) window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
+      reject(new ApiError(msg || `Upload was rejected (${x.status}).`, x.status, null));
+    };
+    x.onerror = () => reject(new ApiError("Upload failed. Check your connection and try again.", 0, null));
+    x.ontimeout = () => reject(new ApiError("Upload timed out. Try again on a better connection.", 0, null));
+    x.send(file);
+  });
+}
+
 /**
- * Uploads media for posts. Uses object storage when it's connected (required for video);
- * otherwise falls back to a compressed inline image.
+ * Uploads any file and returns where it lives.
+ * Tries the direct-to-bucket URL first; if that fails for any reason (CORS, network, storage error)
+ * it automatically retries through the app server, which also works when no bucket is connected.
+ */
+export async function uploadToStorage(file: File, opts: { purpose?: "cloud" | "media"; onProgress?: (pct: number) => void } = {}): Promise<{ key: string; url: string }> {
+  const type = file.type || "application/octet-stream";
+  const r = await api<{ mode: "direct" | "server"; uploadUrl: string; serverUploadUrl: string; key: string; publicUrl: string }>("/api/cloud/upload-url", {
+    method: "POST",
+    json: { filename: file.name, contentType: type, size: file.size, purpose: opts.purpose ?? "media" },
+  });
+  try {
+    await putFile(r.uploadUrl, file, type, opts.onProgress);
+  } catch (e) {
+    if (r.mode !== "direct") throw e;
+    opts.onProgress?.(0);
+    await putFile(r.serverUploadUrl, file, type, opts.onProgress);
+  }
+  return { key: r.key, url: r.publicUrl };
+}
+
+/**
+ * Uploads media for posts. Photos fall back to a compressed inline image if storage is unavailable;
+ * videos always need storage (which now works with or without a connected bucket).
  */
 export async function uploadMedia(file: File): Promise<{ url: string; type: "IMAGE" | "VIDEO" }> {
   const isVideo = file.type.startsWith("video/");
   const isImage = file.type.startsWith("image/");
   if (!isVideo && !isImage) throw new Error("Choose a photo or a video.");
-  if (isVideo && file.size > 100 * 1024 * 1024) throw new Error("Videos can be up to 100 MB.");
+  if (file.size > 100 * 1024 * 1024) throw new Error("Files can be up to 100 MB.");
 
   try {
-    const r = await api<{ uploadUrl: string; publicUrl?: string }>("/api/cloud/upload-url", { method: "POST", json: { filename: file.name, contentType: file.type, size: file.size } });
-    const put = await fetch(r.uploadUrl, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
-    if (put.ok && r.publicUrl) return { url: r.publicUrl, type: isVideo ? "VIDEO" : "IMAGE" };
+    const up = await uploadToStorage(file, { purpose: "media" });
+    return { url: up.url, type: isVideo ? "VIDEO" : "IMAGE" };
   } catch (e) {
-    if (isVideo) throw new Error((e as ApiError).status === 503 ? "Video uploads need cloud storage — the admin hasn't connected it yet." : (e as Error).message);
+    if (isVideo) throw e;
+    return { url: await compressImage(file, 1280, 0.78), type: "IMAGE" };
   }
-  if (isVideo) throw new Error("Video upload failed. Try again.");
-  return { url: await compressImage(file, 1280, 0.78), type: "IMAGE" };
 }
 
 export async function copyText(text: string) {

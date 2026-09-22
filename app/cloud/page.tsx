@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, CloudUpload, Download, File as FileIcon, FileText, Film, ImageIcon, Trash2, Music } from "lucide-react";
 import { Chips, Empty, ErrorNote, ListSkeleton, Page } from "@/components/ui";
-import { api, bytes, timeAgo, useApi } from "@/lib/client";
+import { api, bytes, timeAgo, uploadToStorage, useApi } from "@/lib/client";
 import { toast } from "@/components/toast";
 
 type F = { id: string; name: string; mimeType: string | null; sizeBytes: number; updatedAt: string };
@@ -12,17 +12,6 @@ type D = { files: F[]; usage: { usedBytes: number; limitBytes: number; tier: str
 
 const kind = (m: string | null) => (m?.startsWith("image/") ? "image" : m?.startsWith("video/") ? "video" : m?.startsWith("audio/") ? "audio" : m?.includes("pdf") || m?.startsWith("text/") ? "doc" : "file");
 const ICON = { image: [ImageIcon, "bg-pink-50 text-pink-600 dark:bg-pink-500/15"], video: [Film, "bg-violet-50 text-violet-600 dark:bg-violet-500/15"], audio: [Music, "bg-amber-50 text-amber-600 dark:bg-amber-500/15"], doc: [FileText, "bg-blue-50 text-blue-600 dark:bg-blue-500/15"], file: [FileIcon, "bg-slate-100 text-slate-600 dark:bg-slate-500/20"] } as const;
-
-function putWithProgress(url: string, file: File, type: string, onProgress: (p: number) => void) {
-  return new Promise<void>((resolve, reject) => {
-    const x = new XMLHttpRequest();
-    x.open("PUT", url); x.setRequestHeader("Content-Type", type);
-    x.upload.onprogress = (e) => e.lengthComputable && onProgress(Math.round((e.loaded / e.total) * 100));
-    x.onload = () => (x.status < 300 ? resolve() : reject(new Error("Upload was rejected by storage.")));
-    x.onerror = () => reject(new Error("Upload failed. Check your connection and the storage CORS settings."));
-    x.send(file);
-  });
-}
 
 export default function CloudPage() {
   const { data, loading, error, reload } = useApi<D>("/api/cloud/files");
@@ -37,11 +26,10 @@ export default function CloudPage() {
       setProgress((p) => ({ ...p, [key]: 0 }));
       try {
         const type = file.type || "application/octet-stream";
-        const r = await api<{ uploadUrl: string; key: string }>("/api/cloud/upload-url", { method: "POST", json: { filename: file.name, contentType: type, size: file.size } });
-        await putWithProgress(r.uploadUrl, file, type, (pct) => setProgress((p) => ({ ...p, [key]: pct })));
-        await api("/api/cloud/files", { method: "POST", json: { name: file.name, key: r.key, mimeType: type, sizeBytes: file.size, folder: "/" } });
+        const up = await uploadToStorage(file, { purpose: "cloud", onProgress: (pct) => setProgress((p) => ({ ...p, [key]: pct })) });
+        await api("/api/cloud/files", { method: "POST", json: { name: file.name, key: up.key, mimeType: type, sizeBytes: file.size, folder: "/" } });
         toast(`${file.name} uploaded`);
-      } catch (e: any) { toast(e.status === 503 ? "Cloud storage isn't connected yet." : e.message, "err"); }
+      } catch (e: any) { toast(e.message || "Upload failed. Please try again.", "err"); }
       setProgress((p) => { const n = { ...p }; delete n[key]; return n; });
     }
     if (input.current) input.current.value = "";

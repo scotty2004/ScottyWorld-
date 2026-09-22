@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { removeObject } from "@/lib/integrations/storage";
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
@@ -32,5 +33,7 @@ export async function DELETE(_: Request, context: { params: Promise<{ id: string
   if (!file) return NextResponse.json({ error: "File not found." }, { status: 404 });
 
   await db.cloudFile.delete({ where: { id } });
+  // free the stored bytes too (bucket or database); never fail the request over it
+  await removeObject(file.key).catch(() => null);
   return NextResponse.json({ deleted: true });
 }

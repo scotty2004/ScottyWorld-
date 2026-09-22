@@ -1,5 +1,6 @@
 import { UserRole } from "@prisma/client";
 import { getCurrentUser } from "./session";
+import { isOwnerAccount } from "@/lib/admin/owner";
 
 export type Permission =
   | "admin.dashboard"
@@ -33,6 +34,7 @@ export function hasPermission(role: UserRole, permission: Permission) {
 
 export async function requirePermission(permission: Permission) {
   const user = await getCurrentUser();
-  if (!user || !hasPermission(user.role, permission)) return null;
+  // admin permissions belong to the hardcoded owner account only
+  if (!user || !isOwnerAccount(user)) return null;
   return user;
 }

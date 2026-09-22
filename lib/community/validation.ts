@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const media = z.string().max(2_000_000).refine((v) => /^https?:\/\//.test(v) || /^data:image\/(png|jpeg|jpg|webp|gif);base64,/.test(v), "Invalid media");
+const media = z.string().max(2_000_000).refine((v) => /^https?:\/\//.test(v) || /^\/api\/files\/[A-Za-z0-9_-]{8,64}\/[A-Za-z0-9._-]{1,260}$/.test(v) || /^data:image\/(png|jpeg|jpg|webp|gif);base64,/.test(v), "Invalid media");
 
 export const postCreateSchema = z.object({
   type: z.enum(["POST", "QUESTION", "PROJECT"]).default("POST"),

@@ -3,7 +3,6 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { cloudFileSchema } from "@/lib/cloud/validation";
 import { getEntitlements } from "@/lib/pro/plans";
-import { integrationConfig } from "@/lib/integrations/config";
 
 export async function GET(request: Request) {
   const user = await getCurrentUser();
@@ -21,7 +20,7 @@ export async function GET(request: Request) {
     db.cloudFile.aggregate({ where: { userId: user.id }, _sum: { sizeBytes: true } }),
     getEntitlements(user.id),
   ]);
-  return NextResponse.json({ files, usage: { usedBytes: used._sum.sizeBytes ?? 0, limitBytes: ent.cloudMb * 1024 * 1024, tier: ent.tier }, storageConnected: integrationConfig.storage });
+  return NextResponse.json({ files, usage: { usedBytes: used._sum.sizeBytes ?? 0, limitBytes: ent.cloudMb * 1024 * 1024, tier: ent.tier }, storageConnected: true });
 }
 
 export async function POST(request: Request) {

@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/auth/password";
 import { createSession } from "@/lib/auth/session";
 import { createEmailVerification } from "@/lib/auth/verification";
-import { registerSchema } from "@/lib/validators/auth";
+import { parseDateOfBirth, registerSchema } from "@/lib/validators/auth";
 import { sendEmail } from "@/lib/integrations/email";
 import { ensureAccountNumber, ensureReferralCode } from "@/lib/coins/service";
 
@@ -14,10 +14,10 @@ export async function POST(request: Request) {
 
     if (!parsed.success) {
       console.error("REGISTER_VALIDATION_FAILED", JSON.stringify(parsed.error.flatten()));
-      return NextResponse.json({ error: "Invalid registration details." }, { status: 400 });
+      return NextResponse.json({ error: parsed.error.issues[0]?.message || "Invalid registration details." }, { status: 400 });
     }
 
-    const { email, username, displayName, password, ref } = parsed.data;
+    const { email, username, displayName, password, ref, dateOfBirth } = parsed.data;
     const normalizedEmail = email.toLowerCase();
     const normalizedUsername = username.toLowerCase();
 
@@ -45,6 +45,7 @@ export async function POST(request: Request) {
         email: normalizedEmail,
         username: normalizedUsername,
         displayName,
+        dateOfBirth: parseDateOfBirth(dateOfBirth),
         passwordHash,
         profile: { create: {} },
       },
@@ -63,21 +64,26 @@ export async function POST(request: Request) {
 
     await createSession(user.id);
 
-    try {
-      const token = await createEmailVerification(user.id);
-      const base = process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_SITE_URL || "";
-      const link = `${base.replace(/\/$/, "")}/verify-email?token=${encodeURIComponent(token)}`;
-      await sendEmail({
-        to: normalizedEmail,
-        subject: "Verify your ScottyWorld email",
-        text: `Welcome to ScottyWorld. Verify your email address (link expires in 24 hours):\n\n${link}`,
-        html: `<p>Welcome to ScottyWorld. Verify your email address (link expires in 24 hours).</p><p><a href="${link}">Verify email</a></p>`,
-      });
-    } catch (err) {
-      // Email provider not configured or delivery failed. The account still
-      // exists and can be verified later; don't fail registration on this.
-      console.error("VERIFICATION_EMAIL_FAILED", (err as Error).message);
-    }
+    // Verification email goes out in the background. SMTP can be slow or blocked
+    // by the host (many platforms block ports 25/465/587), and it must never
+    // keep the sign-up request hanging on "Creating account…".
+    void (async () => {
+      try {
+        const token = await createEmailVerification(user.id);
+        const base = process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_SITE_URL || "";
+        const link = `${base.replace(/\/$/, "")}/verify-email?token=${encodeURIComponent(token)}`;
+        await sendEmail({
+          to: normalizedEmail,
+          subject: "Verify your ScottyWorld email",
+          text: `Welcome to ScottyWorld. Verify your email address (link expires in 24 hours):\n\n${link}`,
+          html: `<p>Welcome to ScottyWorld. Verify your email address (link expires in 24 hours).</p><p><a href="${link}">Verify email</a></p>`,
+        });
+      } catch (err) {
+        // Email provider not configured or delivery failed. The account still
+        // exists and can be verified later.
+        console.error("VERIFICATION_EMAIL_FAILED", (err as Error).message);
+      }
+    })();
 
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (err) {

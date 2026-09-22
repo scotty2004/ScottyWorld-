@@ -16,6 +16,10 @@ function getTransporter() {
       port,
       secure: port === 465,
       auth: { user, pass },
+      // fail fast instead of waiting minutes on an unreachable SMTP host
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 20_000,
     });
   }
 

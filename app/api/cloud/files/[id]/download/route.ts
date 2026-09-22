@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { me, unauth, bad } from "@/lib/api";
-import { createDownloadUrl } from "@/lib/integrations/storage";
+import { createDownloadUrl, s3Configured } from "@/lib/integrations/storage";
 
 export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) {
   const user = await me();
@@ -9,9 +9,13 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
   const { id } = await ctx.params;
   const file = await db.cloudFile.findFirst({ where: { id, userId: user.id } });
   if (!file) return bad("File not found.", 404);
+
+  // Direct link from the bucket when connected; otherwise (or if presigning fails) stream through the app.
+  const viaApp = `/api/files/${file.key}?download=1`;
+  if (!s3Configured()) return NextResponse.json({ url: viaApp });
   try {
     return NextResponse.json({ url: await createDownloadUrl(file.key, file.name) });
-  } catch (e) {
-    return bad((e as Error).message === "STORAGE_NOT_CONFIGURED" ? "Cloud storage isn't connected yet." : "Could not create download link.", 503);
+  } catch {
+    return NextResponse.json({ url: viaApp });
   }
 }
