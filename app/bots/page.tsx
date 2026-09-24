@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Bot, Clock, Coins, Plus, RefreshCw, Sparkles, Zap } from "lucide-react";
-import { Badge, Empty, ErrorNote, ListSkeleton, Page } from "@/components/ui";
+import { Bot, Check, Clock, Coins, Copy, Plus, RefreshCw, Smartphone, Sparkles, Zap } from "lucide-react";
+import { Badge, Empty, ErrorNote, Field, ListSkeleton, Page, Sheet } from "@/components/ui";
 import { BotGenerator } from "@/components/bot-generator";
 import { api, useApi } from "@/lib/client";
 import { ECONOMY } from "@/lib/economy";
@@ -17,8 +17,22 @@ function Bots() {
   const coins = useApi<{ balance: number }>("/api/coins");
   const [gen, setGen] = useState(false);
   const [renewing, setRenewing] = useState<string | null>(null);
+  const [connect, setConnect] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [pairing, setPairing] = useState(false);
+  const [pairResult, setPairResult] = useState<{ code: string; copied: boolean } | null>(null);
   const sp = useSearchParams();
   useEffect(() => { if (sp.get("generate")) setGen(true); }, [sp]);
+
+  async function connectScottyC() {
+    setPairing(true); setPairResult(null);
+    try {
+      const r = await api<{ pairingCode?: string; alreadyConnected?: boolean }>("/api/bots/connect", { method: "POST", json: { phone } });
+      if (r.alreadyConnected) { toast("That number is already connected."); setConnect(false); await reload(); }
+      else if (r.pairingCode) setPairResult({ code: r.pairingCode, copied: false });
+    } catch (e) { toast((e as Error).message, "err"); } finally { setPairing(false); }
+  }
+  function closeConnect() { setConnect(false); setPhone(""); setPairResult(null); void reload(); }
 
   async function renew(id: string) {
     setRenewing(id);
@@ -39,9 +53,12 @@ function Bots() {
           <p className="flex items-center gap-2 text-sm font-bold"><Zap size={16} /> Bot hosting</p>
           <p className="mt-1 text-[13px] text-white/85">Every bot is hosted <b>free for {ECONOMY.BOT_FREE_DAYS} days</b>. Keep it online by renewing for <b>{ECONOMY.BOT_RENEW_COINS} SC</b> per {ECONOMY.BOT_RENEW_DAYS} days — earn coins from tasks.</p>
         </div>
-        <div className="grid grid-cols-2 divide-x divide-border">
-          <button onClick={() => setGen(true)} className="flex items-center justify-center gap-2 py-3.5 text-sm font-bold text-brand-600 hover:bg-soft"><Sparkles size={17} /> Generate with AI</button>
-          <Link href="/bots/create" className="flex items-center justify-center gap-2 py-3.5 text-sm font-bold text-brand-600 hover:bg-soft"><Plus size={17} /> Add my bot</Link>
+        <div className="grid grid-cols-1 divide-y divide-border">
+          <button onClick={() => setConnect(true)} className="flex items-center justify-center gap-2 py-3.5 text-sm font-bold text-brand-600 hover:bg-soft"><Smartphone size={17} /> Connect Scotty_C with just your number</button>
+          <div className="grid grid-cols-2 divide-x divide-border">
+            <button onClick={() => setGen(true)} className="flex items-center justify-center gap-2 py-3.5 text-sm font-bold text-brand-600 hover:bg-soft"><Sparkles size={17} /> Generate with AI</button>
+            <Link href="/bots/create" className="flex items-center justify-center gap-2 py-3.5 text-sm font-bold text-brand-600 hover:bg-soft"><Plus size={17} /> Add my bot</Link>
+          </div>
         </div>
       </div>
 
@@ -67,6 +84,25 @@ function Bots() {
         </div>
       )}
       <BotGenerator open={gen} onClose={() => setGen(false)} onDone={reload} />
+      <Sheet open={connect} onClose={closeConnect} title="Connect Scotty_C">
+        {pairResult ? (
+          <div className="rounded-xl bg-soft p-4 text-center">
+            <p className="text-xs font-semibold uppercase tracking-wide text-subtle">Your pairing code</p>
+            <p className="my-1.5 font-mono text-3xl font-extrabold tracking-[0.2em]">{pairResult.code}</p>
+            <button onClick={async () => { await navigator.clipboard.writeText(pairResult.code); setPairResult((p) => p && { ...p, copied: true }); }} className="mx-auto flex items-center gap-1.5 text-xs font-semibold text-brand-600">
+              {pairResult.copied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy code</>}
+            </button>
+            <p className="mt-2 text-[12px] text-subtle">In WhatsApp on {phone}: Settings → Linked devices → Link with phone number → enter this code within 5 minutes.</p>
+            <button onClick={closeConnect} className="sw-btn mt-4 w-full">Done</button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-subtle">Enter the WhatsApp number to connect — no file to generate, pairs straight onto Scotty_C.</p>
+            <Field label="WhatsApp number"><input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="263771234567" inputMode="tel" className="sw-input" /></Field>
+            <button onClick={connectScottyC} disabled={pairing || !phone.trim()} className="sw-btn w-full py-3.5">{pairing ? "Pairing…" : "Get pairing code"}</button>
+          </div>
+        )}
+      </Sheet>
     </Page>
   );
 }

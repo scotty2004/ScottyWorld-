@@ -317,6 +317,7 @@ model Bot {
   generatedFile String?
   generatedFileName String?
   panelSessionId String?
+  phone String?
   owner         User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   events        BotEvent[]
   commands      BotCommand[]

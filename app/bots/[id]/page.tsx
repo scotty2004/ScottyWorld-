@@ -45,10 +45,9 @@ export default function BotPage({ params }: { params: Promise<{ id: string }> })
   async function pair() {
     setPairing(true); setPairResult(null);
     try {
-      const r = await api<{ pairingCode: string }>(`/api/bots/${id}/pair`, { method: "POST", json: { phone } });
-      setPairResult({ code: r.pairingCode, copied: false });
-      toast("Pairing code generated — enter it in WhatsApp within a minute.");
-      await reload();
+      const r = await api<{ pairingCode?: string; alreadyConnected?: boolean }>(`/api/bots/${id}/pair`, { method: "POST", json: { phone } });
+      if (r.alreadyConnected) { toast("That number is already connected."); await reload(); }
+      else if (r.pairingCode) { setPairResult({ code: r.pairingCode, copied: false }); toast("Pairing code generated — enter it in WhatsApp within 5 minutes."); await reload(); }
     } catch (e) { toast((e as Error).message, "err"); } finally { setPairing(false); }
   }
 
@@ -72,21 +71,19 @@ export default function BotPage({ params }: { params: Promise<{ id: string }> })
           <div className="mt-3 rounded-2xl border border-border bg-card p-4">
             <p className="flex items-center gap-2 text-sm font-bold"><Smartphone size={16} className="text-brand-600" /> Connect to WhatsApp</p>
             <p className="mt-1 text-[13px] text-subtle">Enter the WhatsApp number this bot should run on, then link it from WhatsApp &gt; Settings &gt; Linked devices &gt; Link with phone number.</p>
-            {!b.generatedFile ? (
-              <p className="mt-3 text-[13px] text-amber-600">Generate this bot's file first (see below), then come back to connect it.</p>
-            ) : pairResult ? (
+            {pairResult ? (
               <div className="mt-3 rounded-xl bg-soft p-4 text-center">
                 <p className="text-xs font-semibold uppercase tracking-wide text-subtle">Your pairing code</p>
                 <p className="my-1.5 font-mono text-3xl font-extrabold tracking-[0.2em]">{pairResult.code}</p>
                 <button onClick={async () => { await navigator.clipboard.writeText(pairResult.code); setPairResult((p) => p && { ...p, copied: true }); }} className="mx-auto flex items-center gap-1.5 text-xs font-semibold text-brand-600">
                   {pairResult.copied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy code</>}
                 </button>
-                <p className="mt-2 text-[12px] text-subtle">Enter this in WhatsApp on {phone} within a minute. Once linked the bot starts automatically.</p>
+                <p className="mt-2 text-[12px] text-subtle">Enter this in WhatsApp on {phone} within 5 minutes. Once linked the bot starts automatically.</p>
                 <button onClick={() => setPairResult(null)} className="mt-3 text-xs font-semibold text-subtle underline">Use a different number</button>
               </div>
             ) : (
               <div className="mt-3 flex gap-2">
-                <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+263771234567" inputMode="tel" className="sw-input flex-1" />
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="263771234567" inputMode="tel" className="sw-input flex-1" />
                 <button onClick={pair} disabled={pairing || !phone.trim()} className="sw-btn shrink-0">{pairing ? "Pairing…" : "Get code"}</button>
               </div>
             )}
