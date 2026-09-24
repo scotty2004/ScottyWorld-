@@ -8,6 +8,7 @@ import { Logo } from "./logo";
 import { Avatar } from "./ui";
 import { Toaster } from "./toast";
 import { useRealtimeState } from "./realtime";
+import { IncomingCallBanner } from "./incoming-call";
 
 export type ShellUser = { displayName: string; username: string; avatarUrl: string | null } | null;
 
@@ -37,6 +38,7 @@ function Chrome({ children, user, pathname }: { children: React.ReactNode; user:
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
+      <IncomingCallBanner />
       {/* top bar — big on tab roots (phones), always on desktop */}
       <header className={`${showTop ? "" : "hidden lg:block"} sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur-xl safe-top`}>
         <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-3 px-4 lg:h-16 lg:px-6">

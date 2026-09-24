@@ -1,4 +1,60 @@
-export type AiMessage = { role: "system" | "user" | "assistant"; content: string };
+export type AiContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
+
+export type AiMessage = { role: "system" | "user" | "assistant"; content: string | AiContentPart[] };
+
+export type ChatAttachment = { key: string; name: string; type: string; size: number };
+
+const TEXT_LIKE = /^(text\/|application\/(json|xml|javascript|x-httpd-php))|\.(txt|md|json|js|jsx|ts|tsx|py|java|c|cpp|h|css|html|csv|log|yml|yaml|env|sh)$/i;
+const MAX_INLINE_TEXT_BYTES = 60_000; // ~ a few thousand tokens, keeps the prompt sane
+const MAX_INLINE_IMAGE_BYTES = 6 * 1024 * 1024; // most vision-capable models cap around this
+
+/**
+ * Turns an uploaded attachment into content the model can actually use:
+ *  - images   -> inlined as a base64 data URL (vision-capable models only)
+ *  - text/code -> inlined as a fenced snippet (capped, to keep the prompt small)
+ *  - anything else (zip, binaries…) -> a plain description; models can't read raw binary,
+ *    so we tell the user that in the UI rather than pretending the AI opened it.
+ */
+export async function attachmentToPart(att: ChatAttachment): Promise<AiContentPart> {
+  const { openObject } = await import("@/lib/integrations/storage");
+  const isImage = att.type.startsWith("image/");
+  const isTextLike = TEXT_LIKE.test(att.type) || TEXT_LIKE.test(att.name);
+
+  if (isImage && att.size <= MAX_INLINE_IMAGE_BYTES) {
+    try {
+      const obj = await openObject(att.key, null);
+      const chunks: Buffer[] = [];
+      const reader = obj.body.getReader();
+      for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(Buffer.from(value)); }
+      const b64 = Buffer.concat(chunks).toString("base64");
+      return { type: "image_url", image_url: { url: `data:${att.type || "image/png"};base64,${b64}` } };
+    } catch {
+      return { type: "text", text: `[Attached image "${att.name}" could not be read.]` };
+    }
+  }
+
+  if (isTextLike && att.size <= MAX_INLINE_TEXT_BYTES) {
+    try {
+      const obj = await openObject(att.key, null);
+      const chunks: Buffer[] = [];
+      const reader = obj.body.getReader();
+      for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(Buffer.from(value)); }
+      const text = Buffer.concat(chunks).toString("utf8").slice(0, MAX_INLINE_TEXT_BYTES);
+      return { type: "text", text: `Attached file "${att.name}" (${att.type || "text"}, ${att.size} bytes):\n\`\`\`\n${text}\n\`\`\`` };
+    } catch {
+      return { type: "text", text: `[Attached file "${att.name}" could not be read.]` };
+    }
+  }
+
+  return {
+    type: "text",
+    text: isImage
+      ? `[Attached image "${att.name}" (${att.size} bytes) is larger than ${Math.round(MAX_INLINE_IMAGE_BYTES / 1024 / 1024)} MB, so it wasn't sent to the AI.]`
+      : `[Attached file "${att.name}" (${att.type || "unknown type"}, ${att.size} bytes). I can't read the raw contents of this file type (e.g. zip/binary) — describe what's in it and I can help.]`,
+  };
+}
 
 export async function askScotty(messages: AiMessage[], options?: { temperature?: number }) {
   const apiKey = process.env.OPENROUTER_API_KEY || process.env.AI_API_KEY;

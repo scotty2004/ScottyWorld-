@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { MessageCircle, Search, SquarePen } from "lucide-react";
+import { MessageCircle, Search, SquarePen, Trash2 } from "lucide-react";
 import { Avatar, Empty, ListSkeleton, Page, Sheet, SubHeader } from "@/components/ui";
 import { api, timeAgo, useApi } from "@/lib/client";
 import { useRealtime } from "@/components/realtime";
+import { toast } from "@/components/toast";
 
 type C = { username: string; displayName: string; avatarUrl: string | null; online: boolean; unread: number; last: { content: string; createdAt: string; mine: boolean } };
 type P = { kind: string; id: string; title: string; href: string; description?: string };
@@ -29,10 +30,21 @@ function NewMessage({ open, onClose }: { open: boolean; onClose: () => void }) {
 }
 
 export default function MessagesPage() {
-  const { data, loading, reload } = useApi<{ conversations: C[] }>("/api/messages");
+  const { data, loading, reload, setData } = useApi<{ conversations: C[] }>("/api/messages");
   const [q, setQ] = useState(""); const [compose, setCompose] = useState(false);
+  const [toDelete, setToDelete] = useState<C | null>(null);
   const onTick = useCallback((t: { dmFrom: string[] }) => { if (t.dmFrom.length) void reload(); }, [reload]);
   useRealtime(onTick as any);
+
+  async function confirmDelete() {
+    if (!toDelete) return;
+    try {
+      await api(`/api/messages/${toDelete.username}`, { method: "DELETE" });
+      setData((d) => d && { ...d, conversations: d.conversations.filter((c) => c.username !== toDelete.username) });
+      toast("Chat deleted");
+    } catch (e) { toast((e as Error).message, "err"); }
+    setToDelete(null);
+  }
 
   const list = (data?.conversations ?? []).filter((c) => !q || (c.displayName + c.username).toLowerCase().includes(q.toLowerCase()));
   const online = (data?.conversations ?? []).filter((c) => c.online);
@@ -54,7 +66,7 @@ export default function MessagesPage() {
         ) : (
           <div className="sw-card divide-y divide-border overflow-hidden">
             {list.map((c) => (
-              <Link key={c.username} href={`/messages/${c.username}`} className="flex items-center gap-3 px-4 py-3.5 hover:bg-soft">
+              <Link key={c.username} href={`/messages/${c.username}`} onContextMenu={(e) => { e.preventDefault(); setToDelete(c); }} className="flex items-center gap-3 px-4 py-3.5 hover:bg-soft">
                 <Avatar name={c.displayName} src={c.avatarUrl} size={50} online={c.online} />
                 <div className="min-w-0 flex-1"><p className={`truncate ${c.unread ? "font-extrabold" : "font-semibold"}`}>{c.displayName}</p><p className={`truncate text-[13.5px] ${c.unread ? "font-semibold text-foreground" : "text-subtle"}`}>{c.last.mine ? "You: " : ""}{c.last.content}</p></div>
                 <div className="flex flex-col items-end gap-1"><span className="text-xs text-subtle">{timeAgo(c.last.createdAt)}</span>{c.unread > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-brand-600 px-1.5 text-[11px] font-bold text-white">{c.unread}</span>}</div>
@@ -64,6 +76,9 @@ export default function MessagesPage() {
         )}
       </div>
       <NewMessage open={compose} onClose={() => setCompose(false)} />
+      <Sheet open={!!toDelete} onClose={() => setToDelete(null)} title={toDelete?.displayName}>
+        <button onClick={confirmDelete} className="flex w-full items-center gap-3 rounded-xl px-3 py-3.5 font-semibold text-red-600 hover:bg-soft"><Trash2 size={20} /> Delete chat (only for you)</button>
+      </Sheet>
     </Page>
   );
 }

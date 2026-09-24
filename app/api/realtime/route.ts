@@ -28,13 +28,14 @@ export async function GET(req: Request) {
         if (++n % 8 === 0) void touch();
         const since = last; last = new Date();
         try {
-          const [posts, comments, likes, unreadDm, unreadNotif, dms] = await Promise.all([
+          const [posts, comments, likes, unreadDm, unreadNotif, dms, ringing] = await Promise.all([
             db.post.findMany({ where: { createdAt: { gt: since }, isStory: false, NOT: { authorId: user.id } }, select: { id: true }, take: 20 }),
             db.comment.findMany({ where: { createdAt: { gt: since }, NOT: { authorId: user.id } }, select: { postId: true }, take: 50 }),
             db.postLike.findMany({ where: { createdAt: { gt: since }, NOT: { userId: user.id } }, select: { postId: true }, take: 50 }),
             db.directMessage.count({ where: { toId: user.id, readAt: null } }),
             db.notification.count({ where: { userId: user.id, readAt: null } }),
             db.directMessage.findMany({ where: { toId: user.id, createdAt: { gt: since } }, select: { fromId: true }, take: 20 }),
+            db.call.findFirst({ where: { calleeId: user.id, status: "RINGING", startedAt: { gt: new Date(Date.now() - 30_000) } }, orderBy: { startedAt: "desc" }, include: { caller: { select: { username: true, displayName: true, profile: { select: { avatarUrl: true } } } } } }),
           ]);
           send("tick", {
             newPosts: posts.length,
@@ -42,6 +43,7 @@ export async function GET(req: Request) {
             likePostIds: [...new Set(likes.map((l) => l.postId))],
             dmFrom: [...new Set(dms.map((d) => d.fromId))],
             unreadDm, unreadNotif,
+            incomingCall: ringing ? { id: ringing.id, video: ringing.video, from: { username: ringing.caller.username, displayName: ringing.caller.displayName, avatarUrl: ringing.caller.profile?.avatarUrl ?? null } } : null,
           });
         } catch { /* transient DB error — next tick will retry */ }
       };

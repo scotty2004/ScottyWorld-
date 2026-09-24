@@ -13,7 +13,7 @@ export type Entitlements = {
 };
 
 export const FREE_ENTITLEMENTS: Entitlements = {
-  tier: "FREE", aiDaily: 20, bots: 1, cloudMb: 100, listings: 3,
+  tier: "FREE", aiDaily: 160, bots: 1, cloudMb: 100, listings: 3,
   taskBonusPct: 0, freeBotGeneration: false, prioritySupport: false, badge: null,
 };
 

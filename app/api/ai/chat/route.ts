@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth/session";
-import { askScotty, streamScotty } from "@/lib/integrations/ai";
+import { askScotty, streamScotty, attachmentToPart, type AiContentPart, type ChatAttachment } from "@/lib/integrations/ai";
 import { SCOTTY_SYSTEM_PROMPT } from "@/lib/ai/prompt";
 import { enforceRateLimit } from "@/lib/security/request";
 import { getEntitlements } from "@/lib/pro/plans";
@@ -25,7 +25,13 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const messages = Array.isArray(body.messages) ? body.messages.slice(-20) : [];
+    const rawAttachments = Array.isArray(body.attachments) ? body.attachments.slice(0, 4) : [];
     if (!messages.length) return NextResponse.json({ error: "Messages required" }, { status: 400 });
+
+    // Attachments must belong to the caller (upload keys are prefixed with the owner's user id).
+    const attachments: ChatAttachment[] = rawAttachments
+      .filter((a: any) => a && typeof a.key === "string" && a.key.startsWith(`${user.id}/`) && typeof a.name === "string" && Number.isFinite(a.size))
+      .map((a: any) => ({ key: a.key, name: String(a.name).slice(0, 180), type: String(a.type || "application/octet-stream").slice(0, 100), size: Number(a.size) }));
 
     // daily quota by plan
     const ent = await getEntitlements(user.id);
@@ -40,7 +46,19 @@ export async function POST(req: NextRequest) {
     const safe = messages
       .filter((m: any) => m?.role === "user" || m?.role === "assistant")
       .map((m: any) => ({ role: m.role as "user" | "assistant", content: String(m.content || "").slice(0, 12000) }));
-    const withPrompt = [{ role: "system" as const, content: `${SCOTTY_SYSTEM_PROMPT}\n\nThe user's display name is ${user.displayName}.` }, ...safe];
+
+    // Attach files/images to the last user message only, converting each to something the
+    // model can actually consume (inlined image, inlined text snippet, or a plain description).
+    if (attachments.length) {
+      const lastUserIdx = [...safe].map((m) => m.role).lastIndexOf("user");
+      if (lastUserIdx !== -1) {
+        const parts: AiContentPart[] = [{ type: "text", text: safe[lastUserIdx].content || "(see attached file(s))" }];
+        for (const att of attachments) parts.push(await attachmentToPart(att));
+        (safe[lastUserIdx] as any).content = parts;
+      }
+    }
+
+    const withPrompt = [{ role: "system" as const, content: `${SCOTTY_SYSTEM_PROMPT}\n\nThe user's display name is ${user.displayName}. When you write code the user might want to save, put each file in its own fenced code block using the form \`\`\`lang:filename.ext so the app can offer a real download.` }, ...safe];
 
     if (body.stream) {
       const stream = await streamScotty(withPrompt);

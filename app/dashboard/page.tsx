@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, Coins, Heart, ImageIcon, MessageCircle, Pencil, Sparkles, UserPlus, Video, Store, Bot } from "lucide-react";
+import { Bell, Coins, Heart, ImageIcon, MessageCircle, Pencil, Sparkles, UserPlus, Video, Store, Bot, PhoneCall } from "lucide-react";
 import { Avatar, Empty, ListSkeleton, Page, Section } from "@/components/ui";
 import { PostCard, type FeedPost } from "@/components/post-card";
 import { PeopleYouMayKnow } from "@/components/people-strip";
 import { timeAgo, useApi } from "@/lib/client";
+import { useRealtimeState } from "@/components/realtime";
 
 type Account = { account: { displayName: string; avatarUrl: string | null } };
 type Notif = { notifications: Array<{ id: string; type: string; title: string; body: string; createdAt: string; readAt: string | null }> };
@@ -28,6 +29,7 @@ export default function DashboardPage() {
   const acc = useApi<Account>("/api/account");
   const feed = useApi<{ posts: FeedPost[] }>("/api/community/posts?feed=for-you");
   const notifs = useApi<Notif>("/api/notifications");
+  const live = useRealtimeState();
   const name = acc.data?.account.displayName ?? "";
   const first = name.split(" ")[0];
 
@@ -38,6 +40,16 @@ export default function DashboardPage() {
         <h1 className="text-2xl font-extrabold">{greeting()}{first ? `, ${first}` : ""} <span>👋</span></h1>
         <p className="mt-0.5 text-sm text-subtle">Ready to learn, build and grow today?</p>
       </div>
+
+      {/* messages shortcut */}
+      <Link href="/messages" className="sw-card mb-4 flex items-center gap-3 p-3.5 hover:border-brand-500/50">
+        <span className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-500/15">
+          <MessageCircle size={20} />
+          {live.unreadDm > 0 && <span className="absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-brand-600 px-1 text-[10px] font-bold text-white ring-2 ring-background">{live.unreadDm > 9 ? "9+" : live.unreadDm}</span>}
+        </span>
+        <div className="min-w-0 flex-1"><p className="font-bold">Messages</p><p className="text-[13px] text-subtle">{live.unreadDm > 0 ? `${live.unreadDm} unread` : "Chats and calls"}</p></div>
+        <PhoneCall size={18} className="text-subtle" />
+      </Link>
 
       {/* what's on your mind */}
       <div className="sw-card p-3.5">

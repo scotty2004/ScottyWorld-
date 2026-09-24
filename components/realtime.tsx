@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useSyncExternalStore } from "react";
 
-export type Tick = { newPosts: number; commentPostIds: string[]; likePostIds: string[]; dmFrom: string[]; unreadDm: number; unreadNotif: number };
+export type Tick = { newPosts: number; commentPostIds: string[]; likePostIds: string[]; dmFrom: string[]; unreadDm: number; unreadNotif: number; incomingCall?: { id: string; video: boolean; from: { username: string; displayName: string; avatarUrl: string | null } } | null };
 type Listener = (t: Tick) => void;
 
 let es: EventSource | null = null;
