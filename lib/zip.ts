@@ -71,9 +71,12 @@ export function buildZip(entries: ZipEntry[]): Blob {
     u32(0x06054b50), u16(0), u16(0), u16(entries.length), u16(entries.length),
     u32(centralSize), u32(offset), u16(0),
   ]);
-
-  return new Blob([...localParts, ...centralParts, end], { type: "application/zip" });
-}
+return new Blob(
+  [...localParts, ...centralParts, end].map(
+    (part) => new Uint8Array(part)
+  ),
+  { type: "application/zip" }
+);}
 
 export function downloadZip(filename: string, entries: ZipEntry[]) {
   const blob = buildZip(entries);
