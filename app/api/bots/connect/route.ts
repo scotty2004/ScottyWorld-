@@ -33,7 +33,7 @@ export async function POST(req: Request) {
       await recordBotEvent(bot.id, "CREATED", "Connected via Scotty_C panel.");
     }
 
-    const result = await runtimePair(digits);
+    const result = await runtimePair(digits, user.id);
     if ("alreadyConnected" in result) {
       await db.bot.update({ where: { id: bot.id }, data: { status: "RUNNING" } });
       return NextResponse.json({ alreadyConnected: true, botId: bot.id });
@@ -48,6 +48,7 @@ export async function POST(req: Request) {
   } catch (e) {
     const msg = (e as Error).message;
     if (msg === "BOT_RUNTIME_NOT_CONFIGURED") return bad("Bot hosting isn't connected yet — set BOT_RUNTIME_ENDPOINT to your panel's URL (e.g. https://world.scottyhub.co.zw).", 503);
+    if ((e as any).code === "DEVICE_LIMIT") return bad(msg, 403);
     return bad(msg || "Couldn't reach the hosting panel. Try again in a moment.", 502);
   }
 }

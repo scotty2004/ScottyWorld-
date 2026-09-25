@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getOwnedBot } from "@/lib/bots/authorization";
 import { recordBotEvent } from "@/lib/bots/events";
 import { hostingState } from "@/lib/bots/hosting";
+import { runtimeAction } from "@/lib/integrations/bot-runtime";
 
 const allowed = new Set(["test", "start", "stop", "deploy"]);
 
@@ -24,6 +25,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ error: "Hosting expired. Renew with Scotty Coins to run this bot." }, { status: 402 });
   }
 
+  // Actually control the live WhatsApp session on the panel for start/stop —
+  // this used to only flip our own status flag and never touched the bot.
+  if ((action === "start" || action === "stop") && bot.phone) {
+    try {
+      await runtimeAction(bot.phone, action === "start" ? "start" : "stop");
+    } catch (e) {
+      return NextResponse.json({ error: `Couldn't reach the bot panel: ${(e as Error).message}` }, { status: 502 });
+    }
+  }
+
   let status = bot.status;
   let event: "STARTED" | "STOPPED" | "DEPLOYED" | "UPDATED" = "UPDATED";
   let message = "";
@@ -35,12 +46,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (action === "start") {
     status = "RUNNING";
     event = "STARTED";
-    message = "Bot start requested.";
+    message = "Bot started.";
   }
   if (action === "stop") {
     status = "STOPPED";
     event = "STOPPED";
-    message = "Bot stop requested.";
+    message = "Bot stopped.";
   }
   if (action === "deploy") {
     status = "DEPLOYING";

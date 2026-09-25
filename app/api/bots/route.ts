@@ -6,6 +6,7 @@ import { recordBotEvent } from "@/lib/bots/events";
 import { rateLimit } from "@/lib/security/rate-limit";
 import { getEntitlements } from "@/lib/pro/plans";
 import { freeTrialEnd, hostingState } from "@/lib/bots/hosting";
+import { runtimeAction } from "@/lib/integrations/bot-runtime";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -17,11 +18,13 @@ export async function GET() {
     include: { _count: { select: { commands: true, events: true } } },
   });
 
-  // lazy enforcement: hosting that has run out pauses the bot
+  // lazy enforcement: hosting that has run out pauses the bot, both in our
+  // own record and on the panel actually running the WhatsApp session.
   const lapsed = bots.filter((b) => hostingState(b.hostedUntil).state === "EXPIRED" && ["RUNNING", "DEPLOYING", "TESTING"].includes(b.status));
   if (lapsed.length) {
     await db.bot.updateMany({ where: { id: { in: lapsed.map((b) => b.id) } }, data: { status: "PAUSED" } });
     lapsed.forEach((b) => { b.status = "PAUSED" as any; });
+    await Promise.allSettled(lapsed.filter((b) => b.phone).map((b) => runtimeAction(b.phone as string, "stop")));
   }
 
   const ent = await getEntitlements(user.id);

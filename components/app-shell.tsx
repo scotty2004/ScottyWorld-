@@ -16,8 +16,8 @@ export type ShellUser = { displayName: string; username: string; avatarUrl: stri
 const BARE = ["/", "/login", "/register", "/forgot-password", "/verify-email"];
 const isBare = (p: string) => BARE.includes(p) || p.startsWith("/admin") || p.startsWith("/reset");
 
-/** Routes where the phone bottom bar is hidden so the composer can use the full screen. */
-const NO_TABS = [/^\/messages\/[^/]+$/, /^\/community\/create$/, /^\/community\/post\/[^/]+$/];
+/** Routes where the phone bottom bar is hidden so the composer/chat can use the full screen. */
+const NO_TABS = [/^\/messages$/, /^\/messages\/[^/]+$/, /^\/messages\/[^/]+\/call$/, /^\/ai$/, /^\/community\/create$/, /^\/community\/post\/[^/]+$/];
 
 /** Tab roots show the big header on phones. Every other page brings its own back-arrow header. */
 const TAB_ROOTS = ["/dashboard", "/community", "/developer", "/menu"];

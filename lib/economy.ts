@@ -12,9 +12,11 @@ export const ECONOMY = {
   /** admin/platform cut on every marketplace sale */
   MARKET_FEE_PERCENT: 5,
   /** every bot gets this many free days, then must be renewed with coins */
-  BOT_FREE_DAYS: 7,
-  BOT_RENEW_DAYS: 7,
+  BOT_FREE_DAYS: 6,
+  BOT_RENEW_DAYS: 6,
   BOT_RENEW_COINS: 20,
+  /** max WhatsApp numbers (devices) a person may keep paired to Scotty_C at once — enforced by the bot panel itself */
+  BOT_DEVICE_LIMIT: 2,
   /** Scotty AI bot-file generator is free during the first N days of an account */
   BOT_GENERATOR_FREE_DAYS: 4,
   BOT_GENERATOR_COST: 10,

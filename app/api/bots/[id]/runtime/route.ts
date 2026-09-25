@@ -13,11 +13,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const bot = await prisma.bot.findUnique({ where: { id } });
     if (!bot || bot.ownerId !== user.id) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!bot.phone) return NextResponse.json({ error: "This bot isn't paired to a WhatsApp number yet." }, { status: 400 });
 
     const { action } = await req.json();
     if (!["start", "stop", "restart", "status"].includes(action)) return NextResponse.json({ error: "Invalid action" }, { status: 400 });
 
-    const result = await runtimeAction(id, action);
+    const result = await runtimeAction(bot.phone, action);
     return NextResponse.json(result);
   } catch (e) {
     const msg = (e as Error).message;

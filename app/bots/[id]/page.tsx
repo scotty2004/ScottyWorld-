@@ -5,11 +5,12 @@ import { use, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bot, Clock, Download, Play, RefreshCw, Square, Terminal, Trash2, Plus, Smartphone, Copy, Check } from "lucide-react";
 import { Badge, ErrorNote, Field, ListSkeleton, Page, Section, Sheet, SubHeader } from "@/components/ui";
-import { api, timeAgo, useApi } from "@/lib/client";
+import { api, timeAgo, useApi, useCountdown } from "@/lib/client";
 import { ECONOMY } from "@/lib/economy";
 import { toast } from "@/components/toast";
 
-type Bot = { id: string; name: string; description: string | null; provider: string | null; status: string; commandPrefix: string; hostedUntil: string | null; source: string; generatedFile: string | null; generatedFileName: string | null; commands: Array<{ id: string; name: string; description: string | null; enabled: boolean }>; events: Array<{ id: string; type: string; message: string; createdAt: string }> };
+type Device = { phone: string; status: string; expiresAt: number | null; expired: boolean } | null;
+type Bot = { id: string; name: string; description: string | null; provider: string | null; status: string; commandPrefix: string; hostedUntil: string | null; phone: string | null; source: string; generatedFile: string | null; generatedFileName: string | null; device: Device; commands: Array<{ id: string; name: string; description: string | null; enabled: boolean }>; events: Array<{ id: string; type: string; message: string; createdAt: string }> };
 
 export default function BotPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -25,6 +26,9 @@ export default function BotPage({ params }: { params: Promise<{ id: string }> })
   const msLeft = b?.hostedUntil ? new Date(b.hostedUntil).getTime() - Date.now() : 0;
   const days = Math.max(0, Math.ceil(msLeft / 86_400_000));
   const expired = msLeft <= 0;
+  const countdown = useCountdown(b?.hostedUntil ?? null);
+  // Live status straight from the WhatsApp panel, when reachable; otherwise fall back to our own record.
+  const liveStatus = b?.device?.status ?? (b ? b.status.toLowerCase() : "");
 
   async function act(action: string) {
     setBusy(action);
@@ -58,13 +62,13 @@ export default function BotPage({ params }: { params: Promise<{ id: string }> })
         <>
           <div className="sw-card p-4">
             <div className="flex items-center gap-3"><span className="grid h-12 w-12 place-items-center rounded-xl bg-cyan-50 text-cyan-600 dark:bg-cyan-500/15"><Bot size={24} /></span>
-              <div className="flex-1"><p className="font-bold">{b.name}</p><p className="text-[13px] text-subtle">{b.provider || "Custom"} · prefix <code>{b.commandPrefix}</code></p></div><Badge tone={b.status === "RUNNING" ? "green" : b.status === "ERROR" ? "red" : "slate"}>{b.status.toLowerCase()}</Badge></div>
+              <div className="flex-1"><p className="font-bold">{b.name}</p><p className="text-[13px] text-subtle">{b.provider || "Custom"} · prefix <code>{b.commandPrefix}</code></p></div><Badge tone={liveStatus === "connected" || b.status === "RUNNING" ? "green" : liveStatus === "expired" || b.status === "ERROR" ? "red" : "slate"}>{liveStatus}</Badge></div>
             {b.description && <p className="mt-3 text-sm">{b.description}</p>}
           </div>
 
           <div className={`mt-3 rounded-2xl border p-4 ${expired ? "border-red-500/30 bg-red-500/10" : days <= 2 ? "border-amber-500/30 bg-amber-500/10" : "border-emerald-500/30 bg-emerald-500/10"}`}>
-            <p className="flex items-center gap-2 text-sm font-bold"><Clock size={16} />{expired ? "Hosting has ended" : `Hosted for ${days} more day${days === 1 ? "" : "s"}`}</p>
-            <p className="mt-1 text-[13px] text-subtle">{expired ? "Renew to bring your bot back online." : `Ends ${new Date(b.hostedUntil!).toLocaleString()}`}</p>
+            <p className="flex items-center gap-2 text-sm font-bold"><Clock size={16} />{expired ? "Hosting has ended" : "Hosted — time remaining"}</p>
+            <p className="mt-1 text-[13px] text-subtle">{expired ? "Renew to bring your bot back online." : countdown ? countdown.text : `Ends ${new Date(b.hostedUntil!).toLocaleString()}`}</p>
             <button onClick={renew} disabled={busy === "renew"} className="sw-btn mt-3 w-full"><RefreshCw size={16} className={busy === "renew" ? "animate-spin" : ""} /> Renew {ECONOMY.BOT_RENEW_DAYS} days · {ECONOMY.BOT_RENEW_COINS} SC</button>
           </div>
 

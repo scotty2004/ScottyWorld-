@@ -58,6 +58,30 @@ export function timeAgo(input: string | Date) {
 export const compact = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 10_000 ? `${Math.round(n / 1000)}K` : n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n));
 export const bytes = (n: number) => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : n < 1073741824 ? `${(n / 1048576).toFixed(1)} MB` : `${(n / 1073741824).toFixed(2)} GB`);
 
+/** "5d:12h:4m:2s" style countdown from a ms duration. Never negative. */
+export function formatCountdown(msLeft: number) {
+  const ms = Math.max(0, msLeft);
+  const s = Math.floor(ms / 1000);
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return `${d}d:${h}h:${m}m:${sec}s`;
+}
+
+/** Ticks once a second; returns the live countdown string for a target Date/ISO string, or null once it's passed. */
+export function useCountdown(target: string | Date | null | undefined) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (!target) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [target]);
+  if (!target) return null;
+  const msLeft = new Date(target).getTime() - now;
+  return { msLeft, expired: msLeft <= 0, text: formatCountdown(msLeft) };
+}
+
 /** Shrinks an image in the browser and returns a JPEG data URL. */
 export function compressImage(file: File, maxDim = 1280, quality = 0.8): Promise<string> {
   return new Promise((resolve, reject) => {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
-import { aiProvider } from "@/lib/ai/provider";
+import { askScotty } from "@/lib/integrations/ai";
 import { SCOTTY_SYSTEM_PROMPT } from "@/lib/ai/prompt";
 import { rateLimit } from "@/lib/security/rate-limit";
 
@@ -20,19 +20,22 @@ export async function POST(request: Request) {
 
     const requestedAction = ["explain", "debug", "optimize", "document"].includes(action) ? action : "explain";
 
-    const answer = await aiProvider.chat({
-      temperature: 0.2,
-      messages: [
+    const answer = await askScotty(
+      [
         { role: "system", content: SCOTTY_SYSTEM_PROMPT },
         {
           role: "user",
           content: `Developer action: ${requestedAction}\nLanguage: ${language || "unknown"}\n\nCode:\n${code}`,
         },
       ],
-    });
+      { temperature: 0.2 },
+    );
 
     return NextResponse.json({ answer });
-  } catch {
-    return NextResponse.json({ error: "Developer AI is unavailable or not configured." }, { status: 503 });
+  } catch (e) {
+    if ((e as Error).message === "AI_NOT_CONFIGURED") {
+      return NextResponse.json({ error: "Scotty AI isn't switched on yet. The admin needs to add the AI key.", code: "NOT_CONFIGURED" }, { status: 503 });
+    }
+    return NextResponse.json({ error: "Developer AI is unavailable right now. Try again." }, { status: 503 });
   }
 }

@@ -26,14 +26,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (digits.length < 7 || digits.length > 15) return bad("Enter a valid WhatsApp number in international format, e.g. 263771234567.");
 
   try {
-    const result = await runtimePair(digits);
+    const result = await runtimePair(digits, user.id);
     if ("alreadyConnected" in result) {
       await db.bot.update({ where: { id: bot.id }, data: { phone: digits, status: "RUNNING" } });
       return NextResponse.json({ alreadyConnected: true });
     }
 
     const updates: Record<string, unknown> = { phone: digits, status: "DEPLOYING" };
-    if (!bot.hostedUntil) updates.hostedUntil = freeTrialEnd(); // 5-day free clock starts the first time this bot is ever paired
+    if (!bot.hostedUntil) updates.hostedUntil = freeTrialEnd(); // 6-day free clock starts the first time this bot is ever paired
     await db.bot.update({ where: { id: bot.id }, data: updates });
     await recordBotEvent(id, "DEPLOYED", `Pairing started for ${digits}`);
 
@@ -41,6 +41,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   } catch (e) {
     const msg = (e as Error).message;
     if (msg === "BOT_RUNTIME_NOT_CONFIGURED") return bad("Bot hosting isn't connected yet — set BOT_RUNTIME_ENDPOINT to your panel's URL (e.g. https://world.scottyhub.co.zw).", 503);
+    if ((e as any).code === "DEVICE_LIMIT") return bad(msg, 403);
     return bad(msg || "Couldn't reach the hosting panel. Try again in a moment.", 502);
   }
 }
