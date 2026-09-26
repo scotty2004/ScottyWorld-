@@ -1,0 +1,35 @@
+# Database
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/scottyworld?sslmode=require"
+
+# Auth
+SESSION_SECRET="replace-with-a-long-random-secret"
+
+# Optional integrations
+BOT_RUNTIME_ENDPOINT=""
+BOT_RUNTIME_SECRET=""
+AI_PROVIDER=""
+AI_API_KEY=""
+STORAGE_ENDPOINT=""
+STORAGE_BUCKET=""
+STORAGE_ACCESS_KEY=""
+STORAGE_SECRET_KEY=""
+PAYMENT_PROVIDER=""
+PAYMENT_SECRET=""
+PAYMENT_WEBHOOK_SECRET=""
+
+# App
+NEXT_PUBLIC_APP_URL="https://your-domain.example"
+NODE_ENV="production"
+
+AI_API_URL="https://api.openai.com/v1/chat/completions"
+AI_MODEL="gpt-4o-mini"
+STORAGE_ADAPTER_URL=""
+EMAIL_PROVIDER=""
+EMAIL_API_URL=""
+EMAIL_API_KEY=""
+
+# Phase 11: public site / deployment
+NEXT_PUBLIC_SITE_URL=https://scottyworld.example
+
+# Phase 12
+NEXT_PUBLIC_SITE_URL=https://scottyworld.example

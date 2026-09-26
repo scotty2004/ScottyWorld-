@@ -13,7 +13,7 @@
 export type DeviceStatus = {
   phone: string;
   ownerId: string | null;
-  status: "connected" | "pairing" | "reconnecting" | "stopped" | "expired" | "unpaired" | string;
+  status: "connected" | "pairing" | "reconnecting" | "expired" | "unpaired" | string;
   pairedAt: number | null;
   expiresAt: number | null;
   msLeft: number;

@@ -1,0 +1,5 @@
+Contact: mailto:security@scottyworld.example
+Expires: 2027-09-19T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://scottyworld.example/security.txt
+Policy: https://scottyworld.example/security

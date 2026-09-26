@@ -1,0 +1,4 @@
+"use client";
+import {useEffect,useState}from"react";
+export default function Payments(){const[rows,setRows]=useState<any[]>([]);useEffect(()=>{fetch("/api/admin/payments").then(r=>r.ok?r.json():[]).then(setRows)},[]);
+return <div className="space-y-5"><h1 className="text-2xl font-bold">Payments & subscriptions</h1><div className="overflow-x-auto rounded-2xl border"><table className="w-full text-sm"><thead><tr className="border-b text-left"><th className="p-3">User</th><th className="p-3">Plan</th><th className="p-3">Status</th><th className="p-3">Provider</th></tr></thead><tbody>{rows.map(r=><tr key={r.id} className="border-b"><td className="p-3">{r.user?.username||r.user?.email}</td><td className="p-3">{r.plan?.name||"—"}</td><td className="p-3">{r.status}</td><td className="p-3">{r.provider||"—"}</td></tr>)}</tbody></table></div></div>}
